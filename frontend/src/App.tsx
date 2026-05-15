@@ -1,6 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
 import { Analytics } from "@vercel/analytics/react"
-import { SpeedInsights } from '@vercel/speed-insights/next';
 
 function App() {
   return (
@@ -15,7 +14,6 @@ function App() {
         </Routes>
       </main>
         <Analytics/>
-        <SpeedInsights />
     </div>
   )
 }
