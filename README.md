@@ -49,8 +49,13 @@ npm install
 `backend/.env` 파일에 다음 값을 설정:
 
 ```env
+# Supabase PostgreSQL
 DATABASE_URL="postgresql://..."      # Supabase connection pooler URL
 DIRECT_URL="postgresql://..."        # Direct connection for migrations
+
+# Notion API
+NOTION_API_KEY="ntn_..."             # Notion Integration API key
+NOTION_DATABASE_ID="..."             # FlowSync Tasks database ID
 ```
 
 ### 데이터베이스 설정
@@ -80,12 +85,22 @@ npm run dev
 ```
 flow-sync/
 ├── backend/                 # NestJS 백엔드
-│   ├── src/                 # 소스 코드
+│   ├── src/
+│   │   ├── notion/          # Notion 연동 모듈
+│   │   │   ├── notion.module.ts
+│   │   │   ├── notion.service.ts
+│   │   │   └── notion.controller.ts
+│   │   ├── app.module.ts
+│   │   └── main.ts
 │   ├── prisma/              # Prisma 스키마 및 마이그레이션
 │   └── test/                # E2E 테스트
 ├── frontend/                # React 프론트엔드
-│   ├── src/                 # 소스 코드
-│   └── public/              # 정적 파일
+│   ├── src/
+│   │   ├── App.tsx
+│   │   └── main.tsx         # React Query 설정
+│   └── public/
+├── .claude/
+│   └── commands/            # 커스텀 Claude 명령어
 └── docs/                    # PRD 문서
 ```
 
@@ -102,6 +117,19 @@ React UI → NestJS API → PostgreSQL (Primary)
 - **Source of Truth**: PostgreSQL
 - **동기화 방식**: Queue + Batch 기반 준실시간 동기화
 - **충돌 해결**: Last Write Wins (updated_at 기준)
+
+## API 엔드포인트
+
+### Notion API (`/api/notion`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/notion/test` | Notion 연결 테스트 |
+| GET | `/api/notion/schema` | 데이터베이스 스키마 조회 |
+| GET | `/api/notion/pages` | 전체 페이지 조회 (페이지네이션 지원) |
+| GET | `/api/notion/pages/:id` | 특정 페이지 조회 |
+| POST | `/api/notion/pages` | 새 페이지 생성 |
+| PUT | `/api/notion/pages/:id` | 페이지 업데이트 |
 
 ## 스크립트
 
