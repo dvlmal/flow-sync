@@ -1,25 +1,41 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { SyncQueueService } from '../sync/services/sync-queue.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskQueryDto } from './dto/task-query.dto';
 import { TaskSyncPayload } from '../common/types/sync.types';
 
+// SyncQueueService 타입 (선택적 의존성)
+interface ISyncQueueService {
+  addCreateJob(taskId: string, payload: TaskSyncPayload): Promise<any>;
+  addUpdateJob(
+    taskId: string,
+    notionPageId: string,
+    payload: TaskSyncPayload,
+  ): Promise<any>;
+  addDeleteJob(taskId: string, notionPageId: string): Promise<any>;
+}
+
 /**
  * Task 서비스
  * - PostgreSQL CRUD 작업
- * - Notion 동기화 큐 연동
+ * - Notion 동기화 큐 연동 (Redis 사용 가능 시)
  * - Last Write Wins 충돌 해결
  */
 @Injectable()
 export class TaskService {
   private readonly logger = new Logger(TaskService.name);
+  private syncQueueService: ISyncQueueService | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly syncQueueService: SyncQueueService,
-  ) {}
+    @Optional() syncQueue?: ISyncQueueService,
+  ) {
+    this.syncQueueService = syncQueue ?? null;
+    if (!this.syncQueueService) {
+      this.logger.warn('SyncQueueService not available - sync features disabled');
+    }
+  }
 
   /**
    * Task 생성
@@ -48,9 +64,11 @@ export class TaskService {
       },
     });
 
-    // Sync Queue에 CREATE Job 등록
-    const syncPayload = this.buildSyncPayload(task);
-    await this.syncQueueService.addCreateJob(task.id, syncPayload);
+    // Sync Queue에 CREATE Job 등록 (Redis 사용 가능 시)
+    if (this.syncQueueService) {
+      const syncPayload = this.buildSyncPayload(task);
+      await this.syncQueueService.addCreateJob(task.id, syncPayload);
+    }
 
     this.logger.log(`Task created: ${task.id}`);
     return this.formatTaskResponse(task);
@@ -180,8 +198,8 @@ export class TaskService {
       },
     });
 
-    // Notion Page ID가 있으면 UPDATE Job 등록 (동기화 완료된 Task만)
-    if (task.notion_page_id) {
+    // Notion Page ID가 있으면 UPDATE Job 등록 (동기화 완료된 Task만, Redis 사용 가능 시)
+    if (task.notion_page_id && this.syncQueueService) {
       const syncPayload = this.buildSyncPayload(task);
       await this.syncQueueService.addUpdateJob(
         task.id,
@@ -224,8 +242,8 @@ export class TaskService {
       data: { deleted_at: new Date() },
     });
 
-    // Notion Page ID가 있으면 DELETE Job 등록 (동기화 완료된 Task만)
-    if (notionPageId) {
+    // Notion Page ID가 있으면 DELETE Job 등록 (동기화 완료된 Task만, Redis 사용 가능 시)
+    if (notionPageId && this.syncQueueService) {
       await this.syncQueueService.addDeleteJob(id, notionPageId);
     }
 
