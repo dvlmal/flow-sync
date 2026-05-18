@@ -1,4 +1,4 @@
-import { Module, Logger } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -10,52 +10,18 @@ import { WorkflowStatusModule } from './workflow-status/workflow-status.module';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
 
-// Redis/BullMQ 사용 가능 여부 확인
-const isRedisAvailable = !!(
-  process.env.REDIS_URL ||
-  process.env.KV_URL ||
-  (process.env.REDIS_HOST && !process.env.VERCEL)
-);
-
-// 조건부 imports 빌드
-const conditionalImports: any[] = [];
-
-if (isRedisAvailable) {
-  try {
-    // 동적 import를 피하고 조건부로 모듈 추가
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { BullModule } = require('@nestjs/bullmq');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { SyncModule } = require('./sync/sync.module');
-
-    conditionalImports.push(
-      BullModule.forRoot({
-        connection: {
-          url: process.env.REDIS_URL || process.env.KV_URL,
-          maxRetriesPerRequest: null,
-          enableReadyCheck: false,
-        },
-      }),
-      SyncModule,
-    );
-    Logger.log('BullMQ and SyncModule loaded', 'AppModule');
-  } catch (error) {
-    Logger.warn('BullMQ not available, sync features disabled', 'AppModule');
-  }
-} else {
-  Logger.log(
-    'Redis not configured, sync features disabled (Vercel serverless mode)',
-    'AppModule',
-  );
-}
-
+/**
+ * App 모듈
+ * - Vercel 서버리스 호환 (BullMQ/Sync 모듈 제외)
+ * - 로컬에서 Sync 기능 사용 시 SyncModule 별도 실행 필요
+ */
 @Module({
   imports: [
     // 환경 설정 모듈 (환경 변수 검증 포함)
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
-      validate, // 환경 변수 검증
+      validate,
     }),
 
     // 데이터베이스
@@ -66,9 +32,6 @@ if (isRedisAvailable) {
     TaskModule,
     ProjectModule,
     WorkflowStatusModule,
-
-    // 조건부 모듈 (Redis 사용 가능 시)
-    ...conditionalImports,
   ],
   controllers: [AppController],
   providers: [AppService],
