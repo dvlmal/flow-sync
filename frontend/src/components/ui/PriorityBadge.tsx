@@ -139,11 +139,11 @@ function CircleIcon({ className }: IconProps): ReactNode {
 }
 
 const priorityIcons: Record<PriorityKey, (props: IconProps) => ReactNode> = {
-  urgent: AlertCircleIcon,
-  high: ArrowUpIcon,
-  medium: MinusIcon,
-  low: ArrowDownIcon,
-  none: CircleIcon,
+  Urgent: AlertCircleIcon,
+  High: ArrowUpIcon,
+  Medium: MinusIcon,
+  Low: ArrowDownIcon,
+  None: CircleIcon,
 };
 
 // ============================================================================
@@ -294,7 +294,7 @@ export interface PrioritySelectorProps {
   disabled?: boolean;
 }
 
-const priorityOrder: PriorityKey[] = ['urgent', 'high', 'medium', 'low', 'none'];
+const priorityOrder: PriorityKey[] = ['Urgent', 'High', 'Medium', 'Low', 'None'];
 
 export function PrioritySelector({
   value,

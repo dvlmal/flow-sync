@@ -26,9 +26,9 @@ interface CalendarViewProps {
 
 // Map task to FullCalendar event
 function taskToEvent(task: Task, statuses: WorkflowStatus[]): EventInput | null {
-  if (!task.end_date) return null;
+  if (!task.endDate) return null;
 
-  const status = statuses.find((s) => s.id === task.status_id);
+  const status = statuses.find((s) => s.id === task.statusId);
   const statusColor = status ? STATUS_COLORS[status.name] ?? 'bg-gray-400' : 'bg-gray-400';
 
   // Convert Tailwind class to actual color
@@ -47,8 +47,8 @@ function taskToEvent(task: Task, statuses: WorkflowStatus[]): EventInput | null 
   return {
     id: task.id,
     title: task.title,
-    start: task.start_date ?? task.end_date,
-    end: task.end_date,
+    start: task.startDate ?? task.endDate,
+    end: task.endDate,
     allDay: true,
     backgroundColor: bgColor,
     borderColor: bgColor,
@@ -61,10 +61,16 @@ function taskToEvent(task: Task, statuses: WorkflowStatus[]): EventInput | null 
 }
 
 export function CalendarView({ tasks, statuses, projectId, isLoading }: CalendarViewProps) {
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const updateTask = useUpdateTask();
+
+  // Get selected task from tasks array (synced with cache)
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) ?? null : null),
+    [selectedTaskId, tasks]
+  );
 
   // Convert tasks to calendar events
   const events = useMemo(() => {
@@ -76,7 +82,7 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
   // Handle event click
   const handleEventClick = useCallback((info: EventClickArg) => {
     const task = info.event.extendedProps.task as Task;
-    setSelectedTask(task);
+    setSelectedTaskId(task.id);
   }, []);
 
   // Handle date selection for creating new task
@@ -94,8 +100,8 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
         updateTask.mutate({
           id: task.id,
           dto: {
-            end_date: newEndDate.toISOString(),
-            start_date: info.event.start?.toISOString(),
+            endDate: newEndDate.toISOString(),
+            startDate: info.event.start?.toISOString(),
           },
         });
       }
@@ -244,7 +250,7 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
         task={selectedTask}
         statuses={statuses}
         isOpen={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
+        onClose={() => setSelectedTaskId(null)}
       />
 
       {/* Create Task Modal */}

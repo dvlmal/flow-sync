@@ -121,7 +121,7 @@ export function useUpdateTaskStatus() {
 
   return useMutation({
     mutationFn: ({ id, statusId }: { id: string; statusId: string }) =>
-      updateTask(id, { status_id: statusId }),
+      updateTask(id, { statusId: statusId }),
     onMutate: async ({ id, statusId }) => {
       await queryClient.cancelQueries({ queryKey: taskKeys.lists() });
 
@@ -137,7 +137,7 @@ export function useUpdateTaskStatus() {
           return {
             ...old,
             data: old.data.map((task) =>
-              task.id === id ? { ...task, status_id: statusId } : task
+              task.id === id ? { ...task, statusId: statusId } : task
             ),
           };
         }

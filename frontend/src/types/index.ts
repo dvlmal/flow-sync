@@ -10,52 +10,52 @@
 export interface Project {
   id: string;
   title: string;
-  notion_db_id: string;
+  notionDbId: string;
   description?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface WorkflowStatus {
   id: string;
-  project_id: string;
+  projectId: string;
   name: string;
-  sort_ordr?: number | null;
-  notion_option_id?: string | null;
+  sortOrder?: number | null;
+  notionOptionId?: string | null;
 }
 
 export interface Task {
   id: string;
-  project_id?: string | null;
-  status_id?: string | null;
-  notion_page_id?: string | null;
+  projectId?: string | null;
+  statusId?: string | null;
+  notionPageId?: string | null;
   title: string;
   content?: string | null;
-  start_date?: string | null;
-  end_date?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   priority?: TaskPriority | null;
   assignees?: Assignee[] | null;
-  tags?: string | null;
-  raw_notion_data?: Record<string, unknown> | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-  deleted_at?: string | null;
+  tags?: string[] | null;
+  rawNotionData?: Record<string, unknown> | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  deletedAt?: string | null;
   // Relations (populated when fetched with includes)
-  workflow_status?: WorkflowStatus | null;
+  workflowStatus?: WorkflowStatus | null;
   project?: Project | null;
 }
 
 export interface Assignee {
   id: string;
   name: string;
-  avatar_url?: string;
+  avatarUrl?: string;
 }
 
 // ============================================================================
 // Enum Types
 // ============================================================================
 
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 
 export type ViewMode = 'kanban' | 'calendar' | 'list';
 
@@ -88,25 +88,25 @@ export interface PaginatedResponse<T> {
 
 export interface CreateTaskDto {
   title: string;
-  project_id?: string;
-  status_id?: string;
+  projectId?: string;
+  statusId?: string;
   content?: string;
-  start_date?: string;
-  end_date?: string;
+  startDate?: string;
+  endDate?: string;
   priority?: TaskPriority;
   assignees?: Assignee[];
-  tags?: string;
+  tags?: string[];
 }
 
 export interface UpdateTaskDto {
   title?: string;
-  status_id?: string;
+  statusId?: string;
   content?: string;
-  start_date?: string;
-  end_date?: string;
+  startDate?: string;
+  endDate?: string;
   priority?: TaskPriority;
   assignees?: Assignee[];
-  tags?: string;
+  tags?: string[];
 }
 
 // ============================================================================
@@ -132,10 +132,10 @@ export const TAG_COLORS: Record<string, TagColor> = {
 };
 
 export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; icon: string }> = {
-  low: { label: 'Low', color: 'text-gray-400', icon: 'minus' },
-  medium: { label: 'Medium', color: 'text-yellow-500', icon: 'equal' },
-  high: { label: 'High', color: 'text-orange-500', icon: 'chevron-up' },
-  urgent: { label: 'Urgent', color: 'text-red-500', icon: 'chevrons-up' },
+  Low: { label: 'Low', color: 'text-gray-400', icon: 'minus' },
+  Medium: { label: 'Medium', color: 'text-yellow-500', icon: 'equal' },
+  High: { label: 'High', color: 'text-orange-500', icon: 'chevron-up' },
+  Urgent: { label: 'Urgent', color: 'text-red-500', icon: 'chevrons-up' },
 };
 
 export const STATUS_COLORS: Record<string, string> = {

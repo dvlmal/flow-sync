@@ -25,8 +25,8 @@ const initialFormState: CreateTaskDto = {
   title: '',
   content: '',
   priority: undefined,
-  status_id: undefined,
-  end_date: undefined,
+  statusId: undefined,
+  endDate: undefined,
 };
 
 export function CreateTaskModal({
@@ -38,8 +38,8 @@ export function CreateTaskModal({
 }: CreateTaskModalProps) {
   const [formData, setFormData] = useState<CreateTaskDto>({
     ...initialFormState,
-    project_id: projectId,
-    status_id: defaultStatusId,
+    projectId: projectId,
+    statusId: defaultStatusId,
   });
 
   const createTask = useCreateTask();
@@ -52,9 +52,9 @@ export function CreateTaskModal({
       try {
         await createTask.mutateAsync({
           ...formData,
-          project_id: projectId,
+          projectId: projectId,
         });
-        setFormData({ ...initialFormState, project_id: projectId, status_id: defaultStatusId });
+        setFormData({ ...initialFormState, projectId: projectId, statusId: defaultStatusId });
         onClose();
       } catch (error) {
         console.error('Failed to create task:', error);
@@ -143,9 +143,9 @@ export function CreateTaskModal({
             </label>
             <select
               id="task-status"
-              value={formData.status_id ?? ''}
+              value={formData.statusId ?? ''}
               onChange={(e) =>
-                setFormData({ ...formData, status_id: e.target.value || undefined })
+                setFormData({ ...formData, statusId: e.target.value || undefined })
               }
               className="w-full px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
             >
@@ -198,14 +198,14 @@ export function CreateTaskModal({
               id="task-due-date"
               type="date"
               value={
-                formData.end_date
-                  ? format(new Date(formData.end_date), 'yyyy-MM-dd')
+                formData.endDate
+                  ? format(new Date(formData.endDate), 'yyyy-MM-dd')
                   : ''
               }
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  end_date: e.target.value ? new Date(e.target.value).toISOString() : undefined,
+                  endDate: e.target.value ? new Date(e.target.value).toISOString() : undefined,
                 })
               }
               className="w-full px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"

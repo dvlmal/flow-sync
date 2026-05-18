@@ -36,9 +36,9 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
         title: task.title,
         content: task.content ?? '',
         priority: task.priority ?? undefined,
-        status_id: task.status_id ?? undefined,
-        start_date: task.start_date ?? undefined,
-        end_date: task.end_date ?? undefined,
+        statusId: task.statusId ?? undefined,
+        startDate: task.startDate ?? undefined,
+        endDate: task.endDate ?? undefined,
       });
       setIsEditing(false);
       setShowDeleteConfirm(false);
@@ -82,7 +82,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
 
   if (!isOpen || !task) return null;
 
-  const currentStatus = statuses.find((s) => s.id === task.status_id);
+  const currentStatus = statuses.find((s) => s.id === task.statusId);
 
   return createPortal(
     <div
@@ -111,7 +111,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
           <div className="flex items-center gap-3">
             {currentStatus && <StatusBadge status={currentStatus.name} />}
             <span className="text-xs text-gray-500">
-              Updated {task.updated_at ? format(parseISO(task.updated_at), 'MMM d, yyyy') : 'Unknown'}
+              Updated {task.updatedAt ? format(parseISO(task.updatedAt), 'MMM d, yyyy') : 'Unknown'}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -179,8 +179,8 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
               </div>
               {isEditing ? (
                 <select
-                  value={editedTask.status_id ?? ''}
-                  onChange={(e) => setEditedTask({ ...editedTask, status_id: e.target.value })}
+                  value={editedTask.statusId ?? ''}
+                  onChange={(e) => setEditedTask({ ...editedTask, statusId: e.target.value || undefined })}
                   className="flex-1 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 >
                   <option value="">No status</option>
@@ -238,18 +238,18 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
               {isEditing ? (
                 <input
                   type="date"
-                  value={editedTask.end_date ? format(parseISO(editedTask.end_date), 'yyyy-MM-dd') : ''}
+                  value={editedTask.endDate ? format(parseISO(editedTask.endDate), 'yyyy-MM-dd') : ''}
                   onChange={(e) =>
                     setEditedTask({
                       ...editedTask,
-                      end_date: e.target.value ? new Date(e.target.value).toISOString() : undefined,
+                      endDate: e.target.value ? new Date(e.target.value).toISOString() : undefined,
                     })
                   }
                   className="flex-1 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 />
               ) : (
                 <span className="text-sm text-gray-900 dark:text-gray-100">
-                  {task.end_date ? format(parseISO(task.end_date), 'MMM d, yyyy') : 'No due date'}
+                  {task.endDate ? format(parseISO(task.endDate), 'MMM d, yyyy') : 'No due date'}
                 </span>
               )}
             </div>

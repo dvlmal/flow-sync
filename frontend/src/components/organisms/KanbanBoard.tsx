@@ -32,11 +32,17 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [defaultStatusId, setDefaultStatusId] = useState<string | undefined>();
 
   const updateTaskStatus = useUpdateTaskStatus();
+
+  // Get selected task from tasks array (synced with cache)
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) ?? null : null),
+    [selectedTaskId, tasks]
+  );
 
   // Group tasks by status
   const tasksByStatus = useMemo(() => {
@@ -52,7 +58,7 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
 
     // Group tasks
     tasks.forEach((task) => {
-      const statusId = task.status_id ?? 'no-status';
+      const statusId = task.statusId ?? 'no-status';
       if (grouped[statusId]) {
         grouped[statusId].push(task);
       } else {
@@ -110,12 +116,12 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
         // Check if dropped on another task - get that task's status
         const targetTask = tasks.find((t) => t.id === overId);
         if (targetTask) {
-          newStatusId = targetTask.status_id ?? null;
+          newStatusId = targetTask.statusId ?? null;
         }
       }
 
       // Only update if status changed
-      const currentStatusId = task.status_id ?? null;
+      const currentStatusId = task.statusId ?? null;
       if (newStatusId !== currentStatusId) {
         updateTaskStatus.mutate({
           id: taskId,
@@ -141,9 +147,9 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
 
   // Include "No Status" column if there are tasks without status
   const columnsToShow = [
-    ...statuses.sort((a, b) => (a.sort_ordr ?? 0) - (b.sort_ordr ?? 0)),
+    ...statuses.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     ...(tasksByStatus['no-status']?.length > 0
-      ? [{ id: 'no-status', name: 'No Status', project_id: projectId, sort_ordr: 999 }]
+      ? [{ id: 'no-status', name: 'No Status', projectId: projectId, sortOrder: 999 }]
       : []),
   ];
 
@@ -170,7 +176,7 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
                 key={status.id}
                 status={status}
                 tasks={tasksByStatus[status.id] ?? []}
-                onTaskClick={setSelectedTask}
+                onTaskClick={(task) => setSelectedTaskId(task.id)}
                 onAddTask={() => handleAddTask(status.id === 'no-status' ? undefined : status.id)}
               />
             ))
@@ -189,7 +195,7 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
         task={selectedTask}
         statuses={statuses}
         isOpen={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
+        onClose={() => setSelectedTaskId(null)}
       />
 
       {/* Create Task Modal */}

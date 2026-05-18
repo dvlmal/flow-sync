@@ -123,11 +123,11 @@ export class TaskService {
 
     return {
       data: tasks.map((task) => this.formatTaskResponse(task)),
-      pagination: {
-        page: page ?? 1,
-        limit: limit ?? 20,
+      meta: {
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / (limit ?? 20)),
+        totalPages: Math.ceil(total / limit),
       },
     };
   }

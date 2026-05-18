@@ -45,7 +45,7 @@ export function useReorderWorkflowStatuses() {
           .map((id, index) => {
             const status = previous.find((s) => s.id === id);
             if (!status) return null;
-            return { ...status, sort_ordr: index } as WorkflowStatus;
+            return { ...status, sortOrder: index } as WorkflowStatus;
           })
           .filter((s): s is WorkflowStatus => s !== null);
 

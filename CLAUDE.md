@@ -40,14 +40,14 @@ npm run preview            # Preview production build
 
 ```
 React Frontend (port 3000)
-    │ /api proxy
+    │ /api proxy (dev) or Vercel rewrites (prod)
     ▼
 NestJS Backend (port 4000)
     ├── AppModule
-    ├── TaskModule ─── TaskService, TaskController (CRUD + Sync Queue 연동)
+    ├── TaskModule ─── TaskService, TaskController (CRUD)
     ├── ProjectModule ─── ProjectService, ProjectController
     ├── WorkflowStatusModule ─── WorkflowStatusService, WorkflowStatusController
-    ├── SyncModule ─── SyncQueueService, SyncProcessor, NotionSyncService, DLQService
+    ├── SyncModule ─── (선택적, 로컬 환경만) SyncQueueService, SyncProcessor, NotionSyncService
     ├── NotionModule ─── NotionService, NotionController
     ├── PrismaModule ─── PrismaService (PostgreSQL 연결)
     └── ConfigModule ─── 환경 변수 관리
@@ -55,22 +55,38 @@ NestJS Backend (port 4000)
     ▼
 PostgreSQL (Supabase) ─── Primary Source of Truth
     │
-    ▼
+    ▼ (로컬 환경만)
 Sync Queue (BullMQ + Upstash Redis)
     │
     ▼
 Sync Worker → Notion API → FlowSync Tasks DB (Notion)
 ```
 
+### Vercel 배포 아키텍처
+
+```
+Vercel Frontend (/)
+    │ rewrites: /api/* → /_/backend/api/*
+    ▼
+Vercel Backend (/_/backend)
+    │
+    ▼
+PostgreSQL (Supabase)
+```
+
+**Vercel 환경 제한사항:**
+- SyncModule 비활성화 (BullMQ 미지원)
+- Notion 동기화는 별도 서버에서 실행 필요
+
 ### Backend Modules
 
 | Module | Description |
 |--------|-------------|
 | AppModule | Root module, global imports |
-| TaskModule | Task CRUD API, Sync Queue 연동, Soft Delete |
+| TaskModule | Task CRUD API, Soft Delete |
 | ProjectModule | Project CRUD API |
 | WorkflowStatusModule | Workflow Status CRUD, 순서 재정렬 |
-| SyncModule | BullMQ Queue/Worker, DLQ, Notion 동기화 |
+| SyncModule | BullMQ Queue/Worker, DLQ, Notion 동기화 **(로컬 전용, Vercel 제외)** |
 | NotionModule | Notion API integration (CRUD, pagination) |
 | PrismaModule | Prisma ORM, PostgreSQL 연결 |
 | ConfigModule | 환경 변수 검증 및 관리 |
@@ -94,18 +110,22 @@ Five main tables in Prisma schema:
 ## Key Configuration
 
 - Frontend proxies `/api` requests to `http://localhost:4000` (configured in vite.config.ts)
+- Vercel에서는 rewrites로 `/api/*` → `/_/backend/api/*` 라우팅
 - Backend uses `DATABASE_URL` for pooled connections, `DIRECT_URL` for Prisma migrations
 - React Query: 1-minute stale time, 1 retry default (constants in `QUERY_CONFIG`)
 - Code style: single quotes, trailing commas (Prettier)
+- **tsconfig.build.json**: SyncModule 빌드 제외 (Vercel 호환)
 
 ### Environment Variables (backend/.env)
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | Supabase pooled connection URL |
-| `DIRECT_URL` | Direct connection for Prisma migrations |
-| `NOTION_API_KEY` | Notion Integration API key |
-| `NOTION_DATABASE_ID` | FlowSync Tasks database ID |
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | Supabase pooled connection URL | ✅ |
+| `DIRECT_URL` | Direct connection for Prisma migrations | |
+| `NOTION_API_KEY` | Notion Integration API key | ✅ |
+| `NOTION_DATABASE_ID` | FlowSync Tasks database ID | ✅ |
+| `REDIS_URL` | Upstash Redis URL (로컬 Sync용) | |
+| `VERCEL_URL` | Vercel 자동 제공 (CORS용) | |
 
 ### Notion Integration
 
@@ -121,7 +141,8 @@ Five main tables in Prisma schema:
 | UI Components | dnd-kit (Drag & Drop), FullCalendar, Lucide Icons |
 | Backend | NestJS 11, Prisma 7, TypeScript, @notionhq/client 5.x |
 | Database | PostgreSQL (Supabase), Notion Database |
-| Sync | BullMQ, Upstash Redis, Last Write Wins 충돌 해결 |
+| Sync | BullMQ, Upstash Redis, Last Write Wins 충돌 해결 **(로컬 전용)** |
+| Deployment | Vercel (experimentalServices), Supabase |
 
 ### Frontend Structure (Atomic Design)
 
@@ -160,7 +181,15 @@ frontend/src/
 - [x] Task 생성/수정 Modal
 - [x] Atomic Design 컴포넌트 구조
 
+### Completed (Vercel 배포)
+- [x] Vercel experimentalServices 설정
+- [x] API rewrites 구성 (/api/* → /_/backend/api/*)
+- [x] SyncModule 조건부 빌드 (tsconfig.build.json)
+- [x] BullMQ optionalDependencies로 이동
+- [x] Prisma 표준 연결 방식 적용 (adapter-pg 제거)
+
 ### Next (4단계: 동기화 고도화)
 - [ ] Notion → App Polling Scheduler
 - [ ] Conflict Resolution 강화
 - [ ] Supabase Realtime 연동
+- [ ] Sync Worker 별도 서버 배포 (Railway/Render)

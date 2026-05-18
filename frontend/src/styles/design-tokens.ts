@@ -343,7 +343,7 @@ export const dueDateStatus = {
 // ============================================================================
 
 export const priorityConfig = {
-  urgent: {
+  Urgent: {
     label: 'Urgent',
     labelKo: '긴급',
     color: 'red',
@@ -355,7 +355,7 @@ export const priorityConfig = {
     dot: 'bg-red-500',
     icon: 'AlertCircle',
   },
-  high: {
+  High: {
     label: 'High',
     labelKo: '높음',
     color: 'orange',
@@ -367,7 +367,7 @@ export const priorityConfig = {
     dot: 'bg-orange-500',
     icon: 'ArrowUp',
   },
-  medium: {
+  Medium: {
     label: 'Medium',
     labelKo: '보통',
     color: 'yellow',
@@ -379,7 +379,7 @@ export const priorityConfig = {
     dot: 'bg-yellow-500',
     icon: 'Minus',
   },
-  low: {
+  Low: {
     label: 'Low',
     labelKo: '낮음',
     color: 'blue',
@@ -391,7 +391,7 @@ export const priorityConfig = {
     dot: 'bg-blue-500',
     icon: 'ArrowDown',
   },
-  none: {
+  None: {
     label: 'None',
     labelKo: '없음',
     color: 'gray',

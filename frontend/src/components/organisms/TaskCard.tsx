@@ -19,29 +19,16 @@ interface TaskCardProps {
   className?: string;
 }
 
-// Parse tags into array of tag objects (handles both string and array formats)
-function parseTags(tags: string | string[] | null | undefined): { label: string; color: keyof typeof TAG_COLORS }[] {
-  if (!tags) return [];
+// Parse tags into array of tag objects
+function parseTags(tags: string[] | null | undefined): { label: string; color: keyof typeof TAG_COLORS }[] {
+  if (!tags || !Array.isArray(tags)) return [];
 
   const colors: (keyof typeof TAG_COLORS)[] = ['blue', 'green', 'yellow', 'red', 'purple', 'pink', 'orange'];
 
-  // Handle array format (from API)
-  if (Array.isArray(tags)) {
-    return tags.map((tag, index) => ({
-      label: String(tag).trim(),
-      color: colors[index % colors.length],
-    }));
-  }
-
-  // Handle string format (comma-separated)
-  if (typeof tags === 'string') {
-    return tags.split(',').map((tag, index) => ({
-      label: tag.trim(),
-      color: colors[index % colors.length],
-    }));
-  }
-
-  return [];
+  return tags.map((tag, index) => ({
+    label: String(tag).trim(),
+    color: colors[index % colors.length],
+  }));
 }
 
 export const TaskCard = memo(
@@ -99,7 +86,7 @@ export const TaskCard = memo(
               <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-2">
                   <PriorityIcon priority={task.priority} size="sm" />
-                  <DateDisplay date={task.end_date} />
+                  <DateDisplay date={task.endDate} />
                 </div>
 
                 {task.assignees && task.assignees.length > 0 && (

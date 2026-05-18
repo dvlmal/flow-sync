@@ -29,7 +29,7 @@ interface ListViewProps {
   isLoading?: boolean;
 }
 
-type SortField = 'title' | 'end_date' | 'priority' | 'status' | 'created_at';
+type SortField = 'title' | 'endDate' | 'priority' | 'status' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
 interface SortState {
@@ -45,20 +45,26 @@ interface FilterState {
 
 // Priority order for sorting
 const priorityOrder: Record<TaskPriority, number> = {
-  urgent: 4,
-  high: 3,
-  medium: 2,
-  low: 1,
+  Urgent: 4,
+  High: 3,
+  Medium: 2,
+  Low: 1,
 };
 
 export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProps) {
-  const [sort, setSort] = useState<SortState>({ field: 'created_at', direction: 'desc' });
+  const [sort, setSort] = useState<SortState>({ field: 'createdAt', direction: 'desc' });
   const [filters, setFilters] = useState<FilterState>({ search: '', status: null, priority: null });
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   const updateTask = useUpdateTask();
+
+  // Get selected task from tasks array (synced with cache)
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) ?? null : null),
+    [selectedTaskId, tasks]
+  );
 
   // Sort and filter tasks
   const filteredAndSortedTasks = useMemo(() => {
@@ -75,7 +81,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
     }
 
     if (filters.status) {
-      result = result.filter((task) => task.status_id === filters.status);
+      result = result.filter((task) => task.statusId === filters.status);
     }
 
     if (filters.priority) {
@@ -90,9 +96,9 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
         case 'title':
           comparison = a.title.localeCompare(b.title);
           break;
-        case 'end_date':
-          const dateA = a.end_date ? new Date(a.end_date).getTime() : 0;
-          const dateB = b.end_date ? new Date(b.end_date).getTime() : 0;
+        case 'endDate':
+          const dateA = a.endDate ? new Date(a.endDate).getTime() : 0;
+          const dateB = b.endDate ? new Date(b.endDate).getTime() : 0;
           comparison = dateA - dateB;
           break;
         case 'priority':
@@ -101,13 +107,13 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
           comparison = priorityA - priorityB;
           break;
         case 'status':
-          const statusA = statuses.find((s) => s.id === a.status_id)?.sort_ordr ?? 999;
-          const statusB = statuses.find((s) => s.id === b.status_id)?.sort_ordr ?? 999;
+          const statusA = statuses.find((s) => s.id === a.statusId)?.sortOrder ?? 999;
+          const statusB = statuses.find((s) => s.id === b.statusId)?.sortOrder ?? 999;
           comparison = statusA - statusB;
           break;
-        case 'created_at':
-          const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        case 'createdAt':
+          const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           comparison = createdA - createdB;
           break;
       }
@@ -282,11 +288,11 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                 </th>
                 <th className="text-left px-4 py-3 w-32">
                   <button
-                    onClick={() => handleSort('end_date')}
+                    onClick={() => handleSort('endDate')}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-gray-700 dark:hover:text-gray-300"
                   >
                     Due Date
-                    <SortIcon field="end_date" />
+                    <SortIcon field="endDate" />
                   </button>
                 </th>
                 <th className="text-left px-4 py-3 w-32">
@@ -314,13 +320,13 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                 </tr>
               ) : (
                 filteredAndSortedTasks.map((task) => {
-                  const status = statuses.find((s) => s.id === task.status_id);
+                  const status = statuses.find((s) => s.id === task.statusId);
 
                   return (
                     <tr
                       key={task.id}
                       className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
-                      onClick={() => setSelectedTask(task)}
+                      onClick={() => setSelectedTaskId(task.id)}
                     >
                       {/* Title */}
                       <td className="px-4 py-3">
@@ -345,8 +351,8 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                           {statuses.map((s) => (
                             <DropdownItem
                               key={s.id}
-                              selected={s.id === task.status_id}
-                              onClick={() => handleInlineEdit(task.id, 'status_id', s.id)}
+                              selected={s.id === task.statusId}
+                              onClick={() => handleInlineEdit(task.id, 'statusId', s.id)}
                             >
                               <StatusBadge status={s.name} />
                             </DropdownItem>
@@ -387,8 +393,8 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                       {/* Due Date */}
                       <td className="px-4 py-3">
                         <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {task.end_date
-                            ? format(parseISO(task.end_date), 'MMM d, yyyy')
+                          {task.endDate
+                            ? format(parseISO(task.endDate), 'MMM d, yyyy')
                             : '-'}
                         </span>
                       </td>
@@ -420,7 +426,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
         task={selectedTask}
         statuses={statuses}
         isOpen={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
+        onClose={() => setSelectedTaskId(null)}
       />
 
       {/* Create Task Modal */}
