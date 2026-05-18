@@ -44,30 +44,36 @@ React Frontend (port 3000)
     ▼
 NestJS Backend (port 4000)
     ├── AppModule
+    ├── TaskModule ─── TaskService, TaskController (CRUD + Sync Queue 연동)
+    ├── ProjectModule ─── ProjectService, ProjectController
+    ├── WorkflowStatusModule ─── WorkflowStatusService, WorkflowStatusController
+    ├── SyncModule ─── SyncQueueService, SyncProcessor, NotionSyncService, DLQService
     ├── NotionModule ─── NotionService, NotionController
-    │       │
-    │       ▼
-    │   Notion API (@notionhq/client v5)
-    │       │
-    │       ▼
-    │   FlowSync Tasks DB (Notion)
+    ├── PrismaModule ─── PrismaService (PostgreSQL 연결)
+    └── ConfigModule ─── 환경 변수 관리
     │
     ▼
 PostgreSQL (Supabase) ─── Primary Source of Truth
     │
     ▼
-Sync Queue (BullMQ/Redis) [TODO: 2단계]
+Sync Queue (BullMQ + Upstash Redis)
     │
     ▼
-Sync Worker → MCP Client → Notion MCP Server → Notion API
+Sync Worker → Notion API → FlowSync Tasks DB (Notion)
 ```
 
 ### Backend Modules
 
 | Module | Description |
 |--------|-------------|
-| AppModule | Root module |
-| NotionModule | Notion API integration (CRUD, pagination, sync) |
+| AppModule | Root module, global imports |
+| TaskModule | Task CRUD API, Sync Queue 연동, Soft Delete |
+| ProjectModule | Project CRUD API |
+| WorkflowStatusModule | Workflow Status CRUD, 순서 재정렬 |
+| SyncModule | BullMQ Queue/Worker, DLQ, Notion 동기화 |
+| NotionModule | Notion API integration (CRUD, pagination) |
+| PrismaModule | Prisma ORM, PostgreSQL 연결 |
+| ConfigModule | 환경 변수 검증 및 관리 |
 
 **Data Flow:**
 - App → Notion: User action → PostgreSQL → Sync Queue → Worker → MCP → Notion
@@ -112,21 +118,49 @@ Five main tables in Prisma schema:
 | Layer | Technology |
 |-------|------------|
 | Frontend | React 19, Vite, TanStack Query, React Router, Tailwind CSS, Axios |
+| UI Components | dnd-kit (Drag & Drop), FullCalendar, Lucide Icons |
 | Backend | NestJS 11, Prisma 7, TypeScript, @notionhq/client 5.x |
 | Database | PostgreSQL (Supabase), Notion Database |
-| Sync | BullMQ, Redis, MCP (TODO: 2단계) |
+| Sync | BullMQ, Upstash Redis, Last Write Wins 충돌 해결 |
+
+### Frontend Structure (Atomic Design)
+
+```
+frontend/src/
+├── components/
+│   ├── atoms/       # Button, Input, Tag, Avatar, StatusDot, PriorityIcon
+│   ├── molecules/   # Dropdown, ViewSwitcher, LoadingSpinner, AvatarGroup
+│   └── organisms/   # KanbanBoard, CalendarView, ListView, TaskCard, TaskModal
+├── pages/           # TaskBoard (메인 대시보드)
+├── hooks/           # useTasks, useProjects, useWorkflowStatuses
+├── api/             # API 클라이언트 (tasks, projects, workflow-statuses)
+└── types/           # TypeScript 타입 정의
+```
 
 ## Development Progress
 
-### Completed (1단계)
+### Completed (1단계: 기반 구축)
 - [x] Cloud DB 환경 구성 (Supabase)
 - [x] React/NestJS 기본 구조 생성
 - [x] DB 스키마 설계 (Prisma)
 - [x] Notion MCP Server 연결
 - [x] NotionService 구현 (CRUD, 페이지네이션, 초기화 보장)
-- [x] 코드 리뷰 및 성능 최적화
 
-### Next (2단계)
-- [ ] Queue 및 Worker 구축 (BullMQ)
-- [ ] App → Notion 단방향 Sync 구현
-- [ ] 기본 CRUD API 완성 (Task)
+### Completed (2단계: 핵심 기능)
+- [x] Queue 및 Worker 구축 (BullMQ + Upstash Redis)
+- [x] App → Notion 단방향 Sync 구현
+- [x] 기본 CRUD API 완성 (Task, Project, WorkflowStatus)
+- [x] Dead Letter Queue (DLQ) 구현
+- [x] Sync Log 기록
+
+### Completed (3단계: UI 개발)
+- [x] Kanban Board (dnd-kit 드래그 앤 드롭)
+- [x] Calendar View (FullCalendar)
+- [x] List View (정렬, 필터링)
+- [x] Task 생성/수정 Modal
+- [x] Atomic Design 컴포넌트 구조
+
+### Next (4단계: 동기화 고도화)
+- [ ] Notion → App Polling Scheduler
+- [ ] Conflict Resolution 강화
+- [ ] Supabase Realtime 연동
