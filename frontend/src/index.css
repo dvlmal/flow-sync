@@ -1,32 +1,411 @@
-@import "tailwindcss";
+/**
+ * FlowSync Global Styles
+ * Tailwind CSS v4 with Notion-inspired design system
+ */
 
-:root {
-  --primary: #6366f1;
-  --primary-hover: #4f46e5;
-  --background: #ffffff;
-  --foreground: #111827;
-  --muted: #6b7280;
-  --border: #e5e7eb;
-  --card: #f9fafb;
+@import "tailwindcss";
+@import "./styles/animations.css";
+
+/* ============================================================================
+   Tailwind v4 Theme Configuration
+   ============================================================================ */
+
+@theme {
+  /* Notion-inspired Color Palette */
+  --color-notion-primary: #2F3437;
+  --color-notion-secondary: #787774;
+  --color-notion-accent: #2383E2;
+  --color-notion-success: #0F7B6C;
+  --color-notion-warning: #D9730D;
+  --color-notion-error: #E03E3E;
+  --color-notion-surface: #F7F6F3;
+  --color-notion-surface-light: #FBFBFA;
+  --color-notion-border: #E5E4E0;
+
+  /* Text Colors */
+  --color-text-primary: #37352F;
+  --color-text-secondary: #787774;
+  --color-text-tertiary: #9B9A97;
+  --color-text-disabled: #CFCECA;
+
+  /* Custom Shadows for Drag & Drop */
+  --shadow-drag-idle: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  --shadow-drag-lift: 0 8px 16px -2px rgb(0 0 0 / 0.15), 0 4px 8px -2px rgb(0 0 0 / 0.1);
+  --shadow-drag-dragging: 0 12px 24px -4px rgb(0 0 0 / 0.18), 0 6px 12px -2px rgb(0 0 0 / 0.12);
+
+  /* Animation Timing */
+  --animate-duration-fast: 100ms;
+  --animate-duration-normal: 150ms;
+  --animate-duration-moderate: 200ms;
+  --animate-duration-slow: 300ms;
+
+  /* Custom Easing */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Custom Animations */
+  --animate-shimmer: shimmer 1.5s infinite;
+  --animate-pulse-soft: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-spin: spin 0.8s linear infinite;
+  --animate-fade-in: fade-in 200ms ease-out;
+  --animate-slide-up: slide-up-fade 200ms ease-out;
+  --animate-scale-in: scale-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* ============================================================================
+   CSS Custom Properties (for runtime theming)
+   ============================================================================ */
+
+:root {
+  /* Primary Brand Colors */
+  --primary: #2383E2;
+  --primary-hover: #1B6BB8;
+  --primary-active: #14528E;
+
+  /* Background Colors */
+  --background: #FFFFFF;
+  --background-subtle: #F7F6F3;
+  --background-muted: #EFEEED;
+
+  /* Foreground/Text Colors */
+  --foreground: #37352F;
+  --foreground-muted: #787774;
+  --foreground-subtle: #9B9A97;
+
+  /* Border Colors */
+  --border: #E5E4E0;
+  --border-hover: #D3D2CE;
+  --border-focus: #2383E2;
+
+  /* Card Colors */
+  --card: #FFFFFF;
+  --card-hover: #F7F6F3;
+
+  /* Focus Ring */
+  --ring: #2383E2;
+  --ring-offset: 2px;
+
+  /* Status Colors */
+  --success: #0F7B6C;
+  --warning: #D9730D;
+  --error: #E03E3E;
+  --info: #2383E2;
+}
+
+/* Dark Mode Variables */
 .dark {
-  --primary: #818cf8;
-  --primary-hover: #6366f1;
-  --background: #111827;
-  --foreground: #f9fafb;
-  --muted: #9ca3af;
-  --border: #374151;
-  --card: #1f2937;
+  --primary: #5CACFF;
+  --primary-hover: #85C1FF;
+  --primary-active: #ADD6FF;
+
+  --background: #191919;
+  --background-subtle: #202020;
+  --background-muted: #2D2D2D;
+
+  --foreground: #E6E6E4;
+  --foreground-muted: #9B9A97;
+  --foreground-subtle: #787774;
+
+  --border: #373737;
+  --border-hover: #4A4A4A;
+  --border-focus: #5CACFF;
+
+  --card: #202020;
+  --card-hover: #2D2D2D;
+
+  --ring: #5CACFF;
+
+  --success: #34D399;
+  --warning: #FB923C;
+  --error: #F87171;
+  --info: #5CACFF;
+}
+
+/* ============================================================================
+   Base Styles
+   ============================================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
   background-color: var(--background);
   color: var(--foreground);
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* ============================================================================
+   Typography Base
+   ============================================================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--foreground);
+}
+
+h1 { font-size: 2.25rem; }
+h2 { font-size: 1.875rem; }
+h3 { font-size: 1.5rem; }
+h4 { font-size: 1.25rem; }
+h5 { font-size: 1.125rem; }
+h6 { font-size: 1rem; }
+
+p {
+  margin: 0;
+  color: var(--foreground-muted);
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 150ms ease-in-out;
+}
+
+a:hover {
+  color: var(--primary-hover);
+}
+
+/* ============================================================================
+   Focus Styles (Accessibility)
+   ============================================================================ */
+
+/* Remove default focus outline */
+:focus {
+  outline: none;
+}
+
+/* Visible focus for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: var(--ring-offset);
+}
+
+/* Focus ring utility class */
+.focus-ring {
+  transition: box-shadow 150ms ease-in-out;
+}
+
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 var(--ring-offset) var(--background), 0 0 0 calc(var(--ring-offset) + 2px) var(--ring);
+}
+
+/* ============================================================================
+   Scrollbar Styling
+   ============================================================================ */
+
+/* Webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--foreground-subtle);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* ============================================================================
+   Selection Styles
+   ============================================================================ */
+
+::selection {
+  background-color: rgba(35, 131, 226, 0.2);
+  color: inherit;
+}
+
+/* ============================================================================
+   Utility Classes
+   ============================================================================ */
+
+/* Notion-style surface backgrounds */
+.bg-surface {
+  background-color: var(--background-subtle);
+}
+
+.bg-surface-hover:hover {
+  background-color: var(--background-muted);
+}
+
+/* Card styles */
+.card {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  transition: border-color 150ms ease-in-out, box-shadow 150ms ease-in-out;
+}
+
+.card:hover {
+  border-color: var(--border-hover);
+}
+
+.card-interactive {
+  cursor: pointer;
+}
+
+.card-interactive:hover {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+/* Truncate text with ellipsis */
+.truncate-lines-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.truncate-lines-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Interactive button base */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 150ms ease-in-out;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--background-subtle);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--background-muted);
+  border-color: var(--border-hover);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--foreground-muted);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--background-subtle);
+  color: var(--foreground);
+}
+
+/* Input base */
+.input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+  background-color: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  transition: border-color 150ms ease-in-out, box-shadow 150ms ease-in-out;
+}
+
+.input::placeholder {
+  color: var(--foreground-subtle);
+}
+
+.input:hover:not(:disabled):not(:focus) {
+  border-color: var(--border-hover);
+}
+
+.input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.1);
+}
+
+.input:disabled {
+  background-color: var(--background-subtle);
+  color: var(--foreground-subtle);
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   Reduced Motion Support
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

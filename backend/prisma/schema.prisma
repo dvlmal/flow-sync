@@ -9,7 +9,7 @@ datasource db {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model profiles {
-  id             String  @id @default(dbgenerated("auth.uid()")) @db.Uuid
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   full_name      String? @db.VarChar
   notion_user_id String? @db.VarChar
   avatar_url     String?
@@ -47,8 +47,9 @@ model task {
   id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   project_id      String?          @db.Uuid
   status_id       String?          @db.Uuid
-  notion_page_id  String           @unique @db.VarChar
+  notion_page_id  String?          @unique @db.VarChar
   title           String           @db.VarChar
+  deleted_at      DateTime?        @db.Timestamp(6)
   content         String?
   start_date      DateTime?        @db.Timestamp(6)
   end_date        DateTime?        @db.Timestamp(6)

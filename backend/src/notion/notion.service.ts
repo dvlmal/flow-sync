@@ -38,8 +38,11 @@ export class NotionService implements OnModuleInit {
         const db = await this.notion.databases.retrieve({
           database_id: this.databaseId,
         });
-        this.dataSourceId = (db as any).data_sources?.[0]?.id || this.databaseId;
-        this.logger.log(`Notion client initialized with data source: ${this.dataSourceId}`);
+        this.dataSourceId =
+          (db as any).data_sources?.[0]?.id || this.databaseId;
+        this.logger.log(
+          `Notion client initialized with data source: ${this.dataSourceId}`,
+        );
       } catch (error) {
         this.dataSourceId = this.databaseId;
         this.logger.log('Notion client initialized');
@@ -67,7 +70,11 @@ export class NotionService implements OnModuleInit {
   /**
    * Notion 연결 테스트
    */
-  async testConnection(): Promise<{ success: boolean; database?: any; error?: string }> {
+  async testConnection(): Promise<{
+    success: boolean;
+    database?: any;
+    error?: string;
+  }> {
     await this.ensureInitialized();
 
     try {
@@ -116,7 +123,9 @@ export class NotionService implements OnModuleInit {
         nextCursor = response.next_cursor ?? undefined;
 
         if (hasMore) {
-          this.logger.debug(`Fetching next page, current count: ${allResults.length}`);
+          this.logger.debug(
+            `Fetching next page, current count: ${allResults.length}`,
+          );
         }
       }
 
@@ -190,6 +199,26 @@ export class NotionService implements OnModuleInit {
   }
 
   /**
+   * 페이지 아카이브 (논리적 삭제)
+   * Notion API는 페이지를 완전 삭제하지 않고 archived=true로 설정
+   */
+  async archivePage(pageId: string) {
+    await this.ensureInitialized();
+
+    try {
+      const response = await this.notion.pages.update({
+        page_id: pageId,
+        archived: true,
+      });
+      this.logger.log(`Archived page: ${pageId}`);
+      return response;
+    } catch (error) {
+      this.logger.error(`Failed to archive page: ${pageId}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * 마지막 수정 시간 이후 변경된 페이지 조회 (페이지네이션 처리 포함)
    * 대량 업데이트 시에도 모든 변경 페이지를 누락 없이 조회
    *
@@ -231,11 +260,15 @@ export class NotionService implements OnModuleInit {
         nextCursor = response.next_cursor ?? undefined;
 
         if (hasMore) {
-          this.logger.debug(`Fetching next updated pages, current count: ${allResults.length}`);
+          this.logger.debug(
+            `Fetching next updated pages, current count: ${allResults.length}`,
+          );
         }
       }
 
-      this.logger.log(`Total updated pages fetched since ${lastSyncTime.toISOString()}: ${allResults.length}`);
+      this.logger.log(
+        `Total updated pages fetched since ${lastSyncTime.toISOString()}: ${allResults.length}`,
+      );
       return allResults;
     } catch (error) {
       this.logger.error('Failed to get updated pages', error);

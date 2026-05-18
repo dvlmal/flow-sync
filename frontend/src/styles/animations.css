@@ -1,0 +1,550 @@
+/**
+ * FlowSync Animation Styles
+ * Drag & Drop, Transitions, and Loading animations
+ *
+ * Based on Notion's interaction patterns:
+ * - Immediate feedback (< 100ms response time)
+ * - Smooth, natural-feeling animations
+ * - Progressive disclosure of complexity
+ */
+
+/* ============================================================================
+   CSS Custom Properties for Animations
+   ============================================================================ */
+
+:root {
+  /* Timing */
+  --duration-instant: 50ms;
+  --duration-fast: 100ms;
+  --duration-normal: 150ms;
+  --duration-moderate: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 400ms;
+
+  /* Easing */
+  --ease-linear: linear;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Shadows for drag states */
+  --shadow-idle: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  --shadow-lift: 0 8px 16px -2px rgb(0 0 0 / 0.15), 0 4px 8px -2px rgb(0 0 0 / 0.1);
+  --shadow-drag: 0 12px 24px -4px rgb(0 0 0 / 0.18), 0 6px 12px -2px rgb(0 0 0 / 0.12);
+
+  /* Ring colors */
+  --ring-focus: #2383E2;
+  --ring-success: #0F7B6C;
+  --ring-error: #E03E3E;
+}
+
+/* ============================================================================
+   Base Transition Utilities
+   ============================================================================ */
+
+/* Apply to all interactive elements for consistent feedback */
+.transition-base {
+  transition-property: transform, box-shadow, background-color, border-color, opacity;
+  transition-duration: var(--duration-normal);
+  transition-timing-function: var(--ease-in-out);
+}
+
+.transition-colors {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-duration: var(--duration-normal);
+  transition-timing-function: var(--ease-in-out);
+}
+
+.transition-transform {
+  transition-property: transform;
+  transition-duration: var(--duration-normal);
+  transition-timing-function: var(--ease-in-out);
+}
+
+.transition-shadow {
+  transition-property: box-shadow;
+  transition-duration: var(--duration-normal);
+  transition-timing-function: var(--ease-in-out);
+}
+
+/* ============================================================================
+   Drag and Drop - Card States
+   ============================================================================ */
+
+/* Idle state - Default appearance */
+.drag-card {
+  transform: scale(1) rotate(0deg);
+  box-shadow: var(--shadow-idle);
+  opacity: 1;
+  cursor: grab;
+  transition: transform var(--duration-normal) var(--ease-in-out),
+              box-shadow var(--duration-normal) var(--ease-in-out),
+              opacity var(--duration-normal) var(--ease-in-out),
+              border-color var(--duration-normal) var(--ease-in-out);
+  will-change: transform, box-shadow, opacity;
+}
+
+/* Hover state - Subtle feedback */
+.drag-card:hover:not(.drag-card--dragging) {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  border-color: #d1d5db; /* gray-300 */
+}
+
+/* Lifting state - Starting drag */
+.drag-card--lifting {
+  transform: scale(1.02) rotate(1deg);
+  box-shadow: var(--shadow-lift);
+  opacity: 0.95;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-spring);
+}
+
+/* Dragging state - While being dragged */
+.drag-card--dragging {
+  transform: scale(1.03) rotate(1.5deg);
+  box-shadow: var(--shadow-drag);
+  opacity: 0.92;
+  cursor: grabbing;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* Drop animation - Landing in new position */
+.drag-card--dropping {
+  transform: scale(1) rotate(0deg);
+  box-shadow: var(--shadow-idle);
+  opacity: 1;
+  transition: transform var(--duration-moderate) var(--ease-spring),
+              box-shadow var(--duration-moderate) var(--ease-out),
+              opacity var(--duration-fast) var(--ease-out);
+}
+
+/* Success flash - Brief highlight after drop */
+.drag-card--success {
+  animation: drop-success var(--duration-slow) var(--ease-out);
+}
+
+@keyframes drop-success {
+  0% {
+    box-shadow: var(--shadow-lift);
+    background-color: rgb(219 234 254 / 0.5); /* blue-100 with opacity */
+  }
+  50% {
+    background-color: rgb(219 234 254 / 0.3);
+  }
+  100% {
+    box-shadow: var(--shadow-idle);
+    background-color: transparent;
+  }
+}
+
+/* Return animation - Cancelled drag */
+.drag-card--returning {
+  animation: drag-return var(--duration-slow) var(--ease-spring);
+}
+
+@keyframes drag-return {
+  0% {
+    transform: scale(1.03) rotate(1.5deg);
+    box-shadow: var(--shadow-drag);
+  }
+  50% {
+    transform: scale(0.98) rotate(-0.5deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    box-shadow: var(--shadow-idle);
+  }
+}
+
+/* Invalid drop shake */
+.drag-card--invalid {
+  animation: shake var(--duration-normal) var(--ease-in-out);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+/* ============================================================================
+   Drag and Drop - Placeholder
+   ============================================================================ */
+
+/* Placeholder - Shows where the card was */
+.drag-placeholder {
+  border: 2px dashed #d1d5db; /* gray-300 */
+  background-color: rgb(249 250 251 / 0.5); /* gray-50 with opacity */
+  border-radius: 0.5rem;
+  opacity: 0;
+  animation: placeholder-appear var(--duration-fast) var(--ease-out) forwards;
+}
+
+@keyframes placeholder-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Active placeholder - Item is being dragged over */
+.drag-placeholder--active {
+  border-color: #93c5fd; /* blue-300 */
+  background-color: rgb(239 246 255 / 0.5); /* blue-50 with opacity */
+}
+
+/* ============================================================================
+   Drag and Drop - Drop Zone
+   ============================================================================ */
+
+/* Drop zone - Container that accepts drops */
+.drop-zone {
+  transition: background-color var(--duration-normal) var(--ease-in-out),
+              border-color var(--duration-normal) var(--ease-in-out),
+              box-shadow var(--duration-normal) var(--ease-in-out);
+}
+
+/* Drag over - Item hovering over drop zone */
+.drop-zone--over {
+  background-color: rgb(239 246 255 / 0.3); /* blue-50 with opacity */
+  border: 2px dashed #93c5fd; /* blue-300 */
+  border-radius: 0.5rem;
+}
+
+/* Active drop zone - Ready to accept */
+.drop-zone--active {
+  box-shadow: inset 0 0 0 2px #60a5fa; /* blue-400 */
+}
+
+/* Invalid drop zone */
+.drop-zone--invalid {
+  background-color: rgb(254 242 242 / 0.3); /* red-50 with opacity */
+  border: 2px dashed #fca5a5; /* red-300 */
+}
+
+/* ============================================================================
+   Hover and Focus States
+   ============================================================================ */
+
+/* Interactive element hover */
+.hover-lift {
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+/* Button press effect */
+.press-effect:active {
+  transform: scale(0.98);
+  transition-duration: var(--duration-fast);
+}
+
+/* Focus ring - Accessible focus indicator */
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--ring-focus);
+}
+
+.focus-ring:focus:not(:focus-visible) {
+  box-shadow: none;
+}
+
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--ring-focus);
+}
+
+/* ============================================================================
+   Loading States
+   ============================================================================ */
+
+/* Shimmer effect for skeleton loading */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(243 244 246) 0%,
+    rgb(229 231 235) 50%,
+    rgb(243 244 246) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Pulse animation for loading indicators */
+.pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Spinner animation */
+.spinner {
+  border: 2px solid rgb(229 231 235); /* gray-200 */
+  border-top-color: #2383E2; /* accent blue */
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Three-dot loading */
+.dots-loading span {
+  animation: dots-bounce 1.4s infinite ease-in-out both;
+}
+
+.dots-loading span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.dots-loading span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes dots-bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+/* ============================================================================
+   Content Appearance Animations
+   ============================================================================ */
+
+/* Fade in */
+.fade-in {
+  animation: fade-in var(--duration-moderate) var(--ease-out);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Slide up and fade in */
+.slide-up-fade {
+  animation: slide-up-fade var(--duration-moderate) var(--ease-out);
+}
+
+@keyframes slide-up-fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scale in */
+.scale-in {
+  animation: scale-in var(--duration-moderate) var(--ease-spring);
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Collapse animation for accordion/expandable */
+.collapse-content {
+  overflow: hidden;
+  transition: height var(--duration-moderate) var(--ease-in-out),
+              opacity var(--duration-moderate) var(--ease-in-out);
+}
+
+/* ============================================================================
+   Toast / Notification Animations
+   ============================================================================ */
+
+.toast-enter {
+  animation: toast-enter var(--duration-moderate) var(--ease-spring);
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-exit {
+  animation: toast-exit var(--duration-normal) var(--ease-in);
+}
+
+@keyframes toast-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.95);
+  }
+}
+
+/* ============================================================================
+   Modal / Overlay Animations
+   ============================================================================ */
+
+.modal-backdrop {
+  animation: modal-backdrop-in var(--duration-moderate) var(--ease-out);
+}
+
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  animation: modal-content-in var(--duration-moderate) var(--ease-spring);
+}
+
+@keyframes modal-content-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ============================================================================
+   Micro-interactions
+   ============================================================================ */
+
+/* Checkbox check animation */
+.check-mark {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  animation: check-draw var(--duration-moderate) var(--ease-out) forwards;
+}
+
+@keyframes check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Badge count update */
+.badge-update {
+  animation: badge-pop var(--duration-moderate) var(--ease-spring);
+}
+
+@keyframes badge-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Status indicator pulse */
+.status-pulse {
+  position: relative;
+}
+
+.status-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  animation: status-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes status-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* ============================================================================
+   Reduced Motion Support
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .drag-card,
+  .drag-card--lifting,
+  .drag-card--dragging,
+  .drag-card--dropping {
+    transform: none !important;
+    transition: none !important;
+  }
+}
