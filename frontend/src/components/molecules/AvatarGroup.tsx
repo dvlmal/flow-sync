@@ -26,7 +26,7 @@ export function AvatarGroup({ assignees, max = 3, size = 'sm', className }: Avat
         <Avatar
           key={assignee.id}
           name={assignee.name}
-          src={assignee.avatar_url}
+          src={assignee.avatarUrl}
           size={size}
           className="ring-2 ring-white dark:ring-gray-900"
         />
