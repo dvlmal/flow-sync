@@ -25,5 +25,7 @@
       "@prisma/client": ["node_modules/@prisma/client"],
       "@prisma/client/*": ["node_modules/@prisma/client/*"]
     }
-  }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
