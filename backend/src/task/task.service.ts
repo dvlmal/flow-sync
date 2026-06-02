@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskQueryDto } from './dto/task-query.dto';
@@ -18,7 +18,7 @@ interface ISyncQueueService {
 
 /**
  * Task 서비스
- * - PostgreSQL CRUD 작업
+ * - Supabase CRUD 작업
  * - Notion 동기화 큐 연동 (Redis 사용 가능 시)
  * - Last Write Wins 충돌 해결
  */
@@ -28,101 +28,104 @@ export class TaskService {
   private syncQueueService: ISyncQueueService | null = null;
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly supabase: SupabaseService,
     @Optional() syncQueue?: ISyncQueueService,
   ) {
     this.syncQueueService = syncQueue ?? null;
     if (!this.syncQueueService) {
-      this.logger.warn('SyncQueueService not available - sync features disabled');
+      this.logger.warn(
+        'SyncQueueService not available - sync features disabled',
+      );
     }
   }
 
   /**
    * Task 생성
-   * - DB에 저장 후 Sync Queue에 Job 등록
-   * - notion_page_id는 null로 시작, 동기화 완료 후 Worker에서 업데이트
    */
   async create(dto: CreateTaskDto) {
     this.logger.log(`Creating task: ${dto.title}`);
 
-    const task = await this.prisma.task.create({
-      data: {
+    const { data: task, error } = await this.supabase.client
+      .from('task')
+      .insert({
         title: dto.title,
         content: dto.content,
         project_id: dto.projectId,
         status_id: dto.statusId,
         priority: dto.priority,
-        start_date: dto.startDate ? new Date(dto.startDate) : null,
-        end_date: dto.endDate ? new Date(dto.endDate) : null,
-        assignees: dto.assignees ? dto.assignees : undefined,
+        start_date: dto.startDate,
+        end_date: dto.endDate,
+        assignees: dto.assignees,
         tags: dto.tags ? dto.tags.join(',') : null,
-        notion_page_id: null, // 동기화 완료 전까지 null
-      },
-      include: {
-        project: true,
-        workflow_status: true,
-      },
-    });
+        notion_page_id: null,
+      })
+      .select('*')
+      .single();
 
-    // Sync Queue에 CREATE Job 등록 (Redis 사용 가능 시)
+    if (error) {
+      this.logger.error(`Failed to create task: ${error.message}`);
+      throw error;
+    }
+
+    // 관계 데이터 조회
+    const taskWithRelations = await this.findOneInternal(task.id);
+
+    // Sync Queue에 CREATE Job 등록
     if (this.syncQueueService) {
-      const syncPayload = this.buildSyncPayload(task);
+      const syncPayload = this.buildSyncPayload(taskWithRelations);
       await this.syncQueueService.addCreateJob(task.id, syncPayload);
     }
 
     this.logger.log(`Task created: ${task.id}`);
-    return this.formatTaskResponse(task);
+    return this.formatTaskResponse(taskWithRelations);
   }
 
   /**
    * Task 목록 조회 (페이지네이션)
-   * - Soft delete된 Task 제외
    */
   async findAll(query: TaskQueryDto) {
-    const {
-      projectId,
-      statusId,
-      priority,
-      search,
-      sortBy,
-      sortOrder,
-    } = query;
+    const { projectId, statusId, priority, search, sortBy, sortOrder } = query;
 
-    // 명시적으로 숫자로 변환 (Query string은 항상 string으로 들어옴)
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
-    const skip = (page - 1) * limit;
+    const offset = (page - 1) * limit;
 
-    const where: any = {
-      deleted_at: null, // Soft delete된 Task 제외
-    };
+    let queryBuilder = this.supabase.client
+      .from('task')
+      .select(
+        `
+        *,
+        project:project_id(*),
+        workflow_status:status_id(*)
+      `,
+        { count: 'exact' },
+      )
+      .is('deleted_at', null);
 
-    if (projectId) where.project_id = projectId;
-    if (statusId) where.status_id = statusId;
-    if (priority) where.priority = priority;
+    if (projectId) queryBuilder = queryBuilder.eq('project_id', projectId);
+    if (statusId) queryBuilder = queryBuilder.eq('status_id', statusId);
+    if (priority) queryBuilder = queryBuilder.eq('priority', priority);
     if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { content: { contains: search, mode: 'insensitive' } },
-      ];
+      queryBuilder = queryBuilder.or(
+        `title.ilike.%${search}%,content.ilike.%${search}%`,
+      );
     }
 
-    const [tasks, total] = await Promise.all([
-      this.prisma.task.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { [sortBy ?? 'created_at']: sortOrder ?? 'desc' },
-        include: {
-          project: true,
-          workflow_status: true,
-        },
-      }),
-      this.prisma.task.count({ where }),
-    ]);
+    queryBuilder = queryBuilder
+      .order(sortBy ?? 'created_at', { ascending: sortOrder === 'asc' })
+      .range(offset, offset + limit - 1);
+
+    const { data: tasks, error, count } = await queryBuilder;
+
+    if (error) {
+      this.logger.error(`Failed to fetch tasks: ${error.message}`);
+      throw error;
+    }
+
+    const total = count ?? 0;
 
     return {
-      data: tasks.map((task) => this.formatTaskResponse(task)),
+      data: (tasks ?? []).map((task) => this.formatTaskResponse(task)),
       meta: {
         page,
         limit,
@@ -134,121 +137,85 @@ export class TaskService {
 
   /**
    * Task 단건 조회
-   * - Soft delete된 Task도 조회 가능 (상태 확인용)
    */
   async findOne(id: string, includeDeleted = false) {
-    const task = await this.prisma.task.findUnique({
-      where: { id },
-      include: {
-        project: true,
-        workflow_status: true,
-        sync_log: {
-          orderBy: { synced_at: 'desc' },
-          take: 5,
-        },
-      },
-    });
-
-    if (!task) {
-      throw new NotFoundException(`Task not found: ${id}`);
-    }
-
-    // Soft delete된 Task 접근 제한 (includeDeleted가 false인 경우)
-    if (task.deleted_at && !includeDeleted) {
-      throw new NotFoundException(`Task has been deleted: ${id}`);
-    }
-
+    const task = await this.findOneInternal(id, includeDeleted);
     return this.formatTaskResponse(task);
   }
 
   /**
    * Task 수정
-   * - Last Write Wins 적용
-   * - DB 업데이트 후 Sync Queue에 UPDATE Job 등록
    */
   async update(id: string, dto: UpdateTaskDto) {
     this.logger.log(`Updating task: ${id}`);
 
-    const existing = await this.prisma.task.findUnique({
-      where: { id },
-    });
+    // 존재 여부 확인
+    const existing = await this.findOneInternal(id);
 
-    if (!existing) {
-      throw new NotFoundException(`Task not found: ${id}`);
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (dto.title !== undefined) updateData.title = dto.title;
+    if (dto.content !== undefined) updateData.content = dto.content;
+    if (dto.projectId !== undefined) updateData.project_id = dto.projectId;
+    if (dto.statusId !== undefined) updateData.status_id = dto.statusId;
+    if (dto.priority !== undefined) updateData.priority = dto.priority;
+    if (dto.startDate !== undefined) updateData.start_date = dto.startDate;
+    if (dto.endDate !== undefined) updateData.end_date = dto.endDate;
+    if (dto.assignees !== undefined) updateData.assignees = dto.assignees;
+    if (dto.tags !== undefined) updateData.tags = dto.tags.join(',');
+
+    const { error } = await this.supabase.client
+      .from('task')
+      .update(updateData)
+      .eq('id', id);
+
+    if (error) {
+      this.logger.error(`Failed to update task: ${error.message}`);
+      throw error;
     }
 
-    // LWW: 현재 시간으로 updated_at 설정
-    // statusId 처리: undefined는 기존 값 유지, null은 명시적으로 null 설정
-    const statusIdValue =
-      dto.statusId === undefined
-        ? undefined // 기존 값 유지 (Prisma가 필드를 업데이트하지 않음)
-        : dto.statusId; // null 또는 UUID 값 (명시적으로 설정)
+    const task = await this.findOneInternal(id);
 
-    const task = await this.prisma.task.update({
-      where: { id },
-      data: {
-        title: dto.title,
-        content: dto.content,
-        project_id: dto.projectId,
-        status_id: statusIdValue,
-        priority: dto.priority,
-        start_date: dto.startDate ? new Date(dto.startDate) : undefined,
-        end_date: dto.endDate ? new Date(dto.endDate) : undefined,
-        assignees: dto.assignees ? dto.assignees : undefined,
-        tags: dto.tags ? dto.tags.join(',') : undefined,
-        updated_at: new Date(), // LWW timestamp
-      },
-      include: {
-        project: true,
-        workflow_status: true,
-      },
-    });
-
-    // Notion Page ID가 있으면 UPDATE Job 등록 (동기화 완료된 Task만, Redis 사용 가능 시)
-    if (task.notion_page_id && this.syncQueueService) {
+    // Notion Page ID가 있으면 UPDATE Job 등록
+    if (existing.notion_page_id && this.syncQueueService) {
       const syncPayload = this.buildSyncPayload(task);
       await this.syncQueueService.addUpdateJob(
         task.id,
-        task.notion_page_id,
+        existing.notion_page_id,
         syncPayload,
       );
     }
 
-    this.logger.log(`Task updated: ${task.id}`);
+    this.logger.log(`Task updated: ${id}`);
     return this.formatTaskResponse(task);
   }
 
   /**
    * Task 삭제 (Soft Delete)
-   * - deleted_at 설정 후 Sync Queue에 DELETE Job 등록
-   * - Sync 실패 시에도 복구 가능
    */
   async remove(id: string) {
     this.logger.log(`Soft deleting task: ${id}`);
 
-    const existing = await this.prisma.task.findUnique({
-      where: { id },
-    });
+    const existing = await this.findOneInternal(id);
 
-    if (!existing) {
-      throw new NotFoundException(`Task not found: ${id}`);
-    }
-
-    // 이미 삭제된 Task인 경우
     if (existing.deleted_at) {
       throw new NotFoundException(`Task already deleted: ${id}`);
     }
 
-    // Notion Page ID 백업 (삭제 후 동기화용)
     const notionPageId = existing.notion_page_id;
 
-    // Soft Delete: deleted_at 설정
-    await this.prisma.task.update({
-      where: { id },
-      data: { deleted_at: new Date() },
-    });
+    const { error } = await this.supabase.client
+      .from('task')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
 
-    // Notion Page ID가 있으면 DELETE Job 등록 (동기화 완료된 Task만, Redis 사용 가능 시)
+    if (error) {
+      this.logger.error(`Failed to delete task: ${error.message}`);
+      throw error;
+    }
+
     if (notionPageId && this.syncQueueService) {
       await this.syncQueueService.addDeleteJob(id, notionPageId);
     }
@@ -259,22 +226,18 @@ export class TaskService {
 
   /**
    * Task 영구 삭제 (Hard Delete)
-   * - Sync 완료 후 또는 강제 삭제 시 사용
    */
   async hardDelete(id: string) {
     this.logger.log(`Hard deleting task: ${id}`);
 
-    const existing = await this.prisma.task.findUnique({
-      where: { id },
-    });
+    await this.findOneInternal(id, true);
 
-    if (!existing) {
-      throw new NotFoundException(`Task not found: ${id}`);
+    const { error } = await this.supabase.client.from('task').delete().eq('id', id);
+
+    if (error) {
+      this.logger.error(`Failed to hard delete task: ${error.message}`);
+      throw error;
     }
-
-    await this.prisma.task.delete({
-      where: { id },
-    });
 
     this.logger.log(`Task hard deleted: ${id}`);
     return { success: true, id };
@@ -286,27 +249,23 @@ export class TaskService {
   async restore(id: string) {
     this.logger.log(`Restoring task: ${id}`);
 
-    const existing = await this.prisma.task.findUnique({
-      where: { id },
-    });
-
-    if (!existing) {
-      throw new NotFoundException(`Task not found: ${id}`);
-    }
+    const existing = await this.findOneInternal(id, true);
 
     if (!existing.deleted_at) {
       throw new NotFoundException(`Task is not deleted: ${id}`);
     }
 
-    const task = await this.prisma.task.update({
-      where: { id },
-      data: { deleted_at: null },
-      include: {
-        project: true,
-        workflow_status: true,
-      },
-    });
+    const { error } = await this.supabase.client
+      .from('task')
+      .update({ deleted_at: null })
+      .eq('id', id);
 
+    if (error) {
+      this.logger.error(`Failed to restore task: ${error.message}`);
+      throw error;
+    }
+
+    const task = await this.findOneInternal(id);
     this.logger.log(`Task restored: ${id}`);
     return this.formatTaskResponse(task);
   }
@@ -315,25 +274,78 @@ export class TaskService {
    * 프로젝트별 Task 통계
    */
   async getProjectStats(projectId: string) {
-    const [total, byStatus, byPriority] = await Promise.all([
-      this.prisma.task.count({ where: { project_id: projectId } }),
-      this.prisma.task.groupBy({
-        by: ['status_id'],
-        where: { project_id: projectId },
-        _count: true,
-      }),
-      this.prisma.task.groupBy({
-        by: ['priority'],
-        where: { project_id: projectId },
-        _count: true,
-      }),
-    ]);
+    const { data: tasks, error } = await this.supabase.client
+      .from('task')
+      .select('status_id, priority')
+      .eq('project_id', projectId)
+      .is('deleted_at', null);
+
+    if (error) {
+      this.logger.error(`Failed to get project stats: ${error.message}`);
+      throw error;
+    }
+
+    const total = tasks?.length ?? 0;
+
+    // status_id별 그룹핑
+    const byStatus = (tasks ?? []).reduce(
+      (acc, task) => {
+        const key = task.status_id ?? 'null';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    // priority별 그룹핑
+    const byPriority = (tasks ?? []).reduce(
+      (acc, task) => {
+        const key = task.priority ?? 'null';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     return {
       total,
-      byStatus,
-      byPriority,
+      byStatus: Object.entries(byStatus).map(([status_id, count]) => ({
+        status_id: status_id === 'null' ? null : status_id,
+        _count: count,
+      })),
+      byPriority: Object.entries(byPriority).map(([priority, count]) => ({
+        priority: priority === 'null' ? null : priority,
+        _count: count,
+      })),
     };
+  }
+
+  /**
+   * 내부 조회 (관계 포함)
+   */
+  private async findOneInternal(id: string, includeDeleted = false) {
+    let queryBuilder = this.supabase.client
+      .from('task')
+      .select(
+        `
+        *,
+        project:project_id(*),
+        workflow_status:status_id(*)
+      `,
+      )
+      .eq('id', id);
+
+    if (!includeDeleted) {
+      queryBuilder = queryBuilder.is('deleted_at', null);
+    }
+
+    const { data: task, error } = await queryBuilder.single();
+
+    if (error || !task) {
+      throw new NotFoundException(`Task not found: ${id}`);
+    }
+
+    return task;
   }
 
   /**
@@ -345,8 +357,8 @@ export class TaskService {
       content: task.content,
       status: task.workflow_status?.name,
       priority: task.priority,
-      startDate: task.start_date?.toISOString().split('T')[0],
-      endDate: task.end_date?.toISOString().split('T')[0],
+      startDate: task.start_date?.split('T')[0],
+      endDate: task.end_date?.split('T')[0],
       assignees: task.assignees as string[] | undefined,
       tags: task.tags ? task.tags.split(',') : undefined,
     };
@@ -368,12 +380,11 @@ export class TaskService {
       priority: task.priority,
       startDate: task.start_date,
       endDate: task.end_date,
-      assignees: (task.assignees as string[]) ?? [],
+      assignees: task.assignees ?? [],
       tags: task.tags ? task.tags.split(',') : [],
       createdAt: task.created_at,
       updatedAt: task.updated_at,
       deletedAt: task.deleted_at,
-      syncLogs: task.sync_log,
     };
   }
 }

@@ -4,20 +4,20 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 
 /**
  * Project 서비스
- * - PostgreSQL CRUD 작업
+ * - Supabase CRUD 작업
  * - Notion Database 연동 관리
  */
 @Injectable()
 export class ProjectService {
   private readonly logger = new Logger(ProjectService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly supabase: SupabaseService) {}
 
   /**
    * Project 생성
@@ -26,9 +26,11 @@ export class ProjectService {
     this.logger.log(`Creating project: ${dto.title}`);
 
     // Notion DB ID 중복 체크
-    const existing = await this.prisma.project.findUnique({
-      where: { notion_db_id: dto.notionDbId },
-    });
+    const { data: existing } = await this.supabase.client
+      .from('project')
+      .select('id')
+      .eq('notion_db_id', dto.notionDbId)
+      .single();
 
     if (existing) {
       throw new ConflictException(
@@ -36,91 +38,134 @@ export class ProjectService {
       );
     }
 
-    const project = await this.prisma.project.create({
-      data: {
+    const { data: project, error } = await this.supabase.client
+      .from('project')
+      .insert({
         title: dto.title,
         description: dto.description,
         notion_db_id: dto.notionDbId,
-      },
-      include: {
-        workflow_status: {
-          orderBy: { sort_ordr: 'asc' },
-        },
-        _count: {
-          select: { task: true },
-        },
-      },
-    });
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      this.logger.error(`Failed to create project: ${error.message}`);
+      throw error;
+    }
 
     this.logger.log(`Project created: ${project.id}`);
-    return this.formatProjectResponse(project);
+    return this.findOne(project.id);
   }
 
   /**
    * Project 목록 조회
    */
   async findAll() {
-    const projects = await this.prisma.project.findMany({
-      orderBy: { created_at: 'desc' },
-      include: {
-        workflow_status: {
-          orderBy: { sort_ordr: 'asc' },
-        },
-        _count: {
-          select: { task: true },
-        },
-      },
-    });
+    const { data: projects, error } = await this.supabase.client
+      .from('project')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    return projects.map((project) => this.formatProjectResponse(project));
+    if (error) {
+      this.logger.error(`Failed to fetch projects: ${error.message}`);
+      throw error;
+    }
+
+    // 각 프로젝트별로 workflow_status와 task count 조회
+    const result = await Promise.all(
+      (projects ?? []).map(async (project) => {
+        const [statusesResult, taskCountResult] = await Promise.all([
+          this.supabase.client
+            .from('workflow_status')
+            .select('*')
+            .eq('project_id', project.id)
+            .order('sort_ordr', { ascending: true }),
+          this.supabase.client
+            .from('task')
+            .select('id', { count: 'exact', head: true })
+            .eq('project_id', project.id)
+            .is('deleted_at', null),
+        ]);
+
+        return this.formatProjectResponse(
+          project,
+          statusesResult.data ?? [],
+          taskCountResult.count ?? 0,
+        );
+      }),
+    );
+
+    return result;
   }
 
   /**
    * Project 단건 조회
    */
   async findOne(id: string) {
-    const project = await this.prisma.project.findUnique({
-      where: { id },
-      include: {
-        workflow_status: {
-          orderBy: { sort_ordr: 'asc' },
-        },
-        _count: {
-          select: { task: true },
-        },
-      },
-    });
+    const { data: project, error } = await this.supabase.client
+      .from('project')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (!project) {
+    if (error || !project) {
       throw new NotFoundException(`Project not found: ${id}`);
     }
 
-    return this.formatProjectResponse(project);
+    const [statusesResult, taskCountResult] = await Promise.all([
+      this.supabase.client
+        .from('workflow_status')
+        .select('*')
+        .eq('project_id', id)
+        .order('sort_ordr', { ascending: true }),
+      this.supabase.client
+        .from('task')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', id)
+        .is('deleted_at', null),
+    ]);
+
+    return this.formatProjectResponse(
+      project,
+      statusesResult.data ?? [],
+      taskCountResult.count ?? 0,
+    );
   }
 
   /**
    * Notion DB ID로 Project 조회
    */
   async findByNotionDbId(notionDbId: string) {
-    const project = await this.prisma.project.findUnique({
-      where: { notion_db_id: notionDbId },
-      include: {
-        workflow_status: {
-          orderBy: { sort_ordr: 'asc' },
-        },
-        _count: {
-          select: { task: true },
-        },
-      },
-    });
+    const { data: project, error } = await this.supabase.client
+      .from('project')
+      .select('*')
+      .eq('notion_db_id', notionDbId)
+      .single();
 
-    if (!project) {
+    if (error || !project) {
       throw new NotFoundException(
         `Project not found with Notion DB ID: ${notionDbId}`,
       );
     }
 
-    return this.formatProjectResponse(project);
+    const [statusesResult, taskCountResult] = await Promise.all([
+      this.supabase.client
+        .from('workflow_status')
+        .select('*')
+        .eq('project_id', project.id)
+        .order('sort_ordr', { ascending: true }),
+      this.supabase.client
+        .from('task')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', project.id)
+        .is('deleted_at', null),
+    ]);
+
+    return this.formatProjectResponse(
+      project,
+      statusesResult.data ?? [],
+      taskCountResult.count ?? 0,
+    );
   }
 
   /**
@@ -129,33 +174,25 @@ export class ProjectService {
   async update(id: string, dto: UpdateProjectDto) {
     this.logger.log(`Updating project: ${id}`);
 
-    const existing = await this.prisma.project.findUnique({
-      where: { id },
-    });
+    // 존재 여부 확인
+    await this.findOne(id);
 
-    if (!existing) {
-      throw new NotFoundException(`Project not found: ${id}`);
-    }
-
-    const project = await this.prisma.project.update({
-      where: { id },
-      data: {
+    const { error } = await this.supabase.client
+      .from('project')
+      .update({
         title: dto.title,
         description: dto.description,
-        updated_at: new Date(),
-      },
-      include: {
-        workflow_status: {
-          orderBy: { sort_ordr: 'asc' },
-        },
-        _count: {
-          select: { task: true },
-        },
-      },
-    });
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
 
-    this.logger.log(`Project updated: ${project.id}`);
-    return this.formatProjectResponse(project);
+    if (error) {
+      this.logger.error(`Failed to update project: ${error.message}`);
+      throw error;
+    }
+
+    this.logger.log(`Project updated: ${id}`);
+    return this.findOne(id);
   }
 
   /**
@@ -165,17 +202,15 @@ export class ProjectService {
   async remove(id: string) {
     this.logger.log(`Deleting project: ${id}`);
 
-    const existing = await this.prisma.project.findUnique({
-      where: { id },
-    });
+    // 존재 여부 확인
+    await this.findOne(id);
 
-    if (!existing) {
-      throw new NotFoundException(`Project not found: ${id}`);
+    const { error } = await this.supabase.client.from('project').delete().eq('id', id);
+
+    if (error) {
+      this.logger.error(`Failed to delete project: ${error.message}`);
+      throw error;
     }
-
-    await this.prisma.project.delete({
-      where: { id },
-    });
 
     this.logger.log(`Project deleted: ${id}`);
     return { success: true, id };
@@ -184,19 +219,23 @@ export class ProjectService {
   /**
    * Project 응답 형식 포맷
    */
-  private formatProjectResponse(project: any) {
+  private formatProjectResponse(
+    project: any,
+    statuses: any[],
+    taskCount: number,
+  ) {
     return {
       id: project.id,
       title: project.title,
       description: project.description,
       notionDbId: project.notion_db_id,
-      workflowStatuses: project.workflow_status?.map((status: any) => ({
+      workflowStatuses: statuses.map((status) => ({
         id: status.id,
         name: status.name,
         sortOrder: status.sort_ordr,
         notionOptionId: status.notion_option_id,
       })),
-      taskCount: project._count?.task ?? 0,
+      taskCount,
       createdAt: project.created_at,
       updatedAt: project.updated_at,
     };

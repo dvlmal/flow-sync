@@ -4,7 +4,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { CreateWorkflowStatusDto } from './dto/create-workflow-status.dto';
 import { UpdateWorkflowStatusDto } from './dto/update-workflow-status.dto';
 
@@ -17,7 +17,7 @@ import { UpdateWorkflowStatusDto } from './dto/update-workflow-status.dto';
 export class WorkflowStatusService {
   private readonly logger = new Logger(WorkflowStatusService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly supabase: SupabaseService) {}
 
   /**
    * WorkflowStatus 생성
@@ -28,21 +28,23 @@ export class WorkflowStatusService {
     );
 
     // 프로젝트 존재 여부 확인
-    const project = await this.prisma.project.findUnique({
-      where: { id: dto.projectId },
-    });
+    const { data: project } = await this.supabase.client
+      .from('project')
+      .select('id')
+      .eq('id', dto.projectId)
+      .single();
 
     if (!project) {
       throw new NotFoundException(`Project not found: ${dto.projectId}`);
     }
 
     // 같은 프로젝트 내 이름 중복 체크
-    const existing = await this.prisma.workflow_status.findFirst({
-      where: {
-        project_id: dto.projectId,
-        name: dto.name,
-      },
-    });
+    const { data: existing } = await this.supabase.client
+      .from('workflow_status')
+      .select('id')
+      .eq('project_id', dto.projectId)
+      .eq('name', dto.name)
+      .single();
 
     if (existing) {
       throw new ConflictException(
@@ -53,68 +55,89 @@ export class WorkflowStatusService {
     // sortOrder가 지정되지 않으면 마지막 순서로 설정
     let sortOrder = dto.sortOrder;
     if (sortOrder === undefined) {
-      const lastStatus = await this.prisma.workflow_status.findFirst({
-        where: { project_id: dto.projectId },
-        orderBy: { sort_ordr: 'desc' },
-      });
+      const { data: lastStatus } = await this.supabase.client
+        .from('workflow_status')
+        .select('sort_ordr')
+        .eq('project_id', dto.projectId)
+        .order('sort_ordr', { ascending: false })
+        .limit(1)
+        .single();
+
       sortOrder = (lastStatus?.sort_ordr ?? -1) + 1;
     }
 
-    const status = await this.prisma.workflow_status.create({
-      data: {
+    const { data: status, error } = await this.supabase.client
+      .from('workflow_status')
+      .insert({
         project_id: dto.projectId,
         name: dto.name,
         sort_ordr: sortOrder,
         notion_option_id: dto.notionOptionId,
-      },
-      include: {
-        project: true,
-        _count: {
-          select: { task: true },
-        },
-      },
-    });
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      this.logger.error(`Failed to create workflow status: ${error.message}`);
+      throw error;
+    }
 
     this.logger.log(`Workflow status created: ${status.id}`);
-    return this.formatStatusResponse(status);
+    return this.findOne(status.id);
   }
 
   /**
    * 프로젝트별 WorkflowStatus 목록 조회
    */
   async findByProject(projectId: string) {
-    const statuses = await this.prisma.workflow_status.findMany({
-      where: { project_id: projectId },
-      orderBy: { sort_ordr: 'asc' },
-      include: {
-        _count: {
-          select: { task: true },
-        },
-      },
-    });
+    const { data: statuses, error } = await this.supabase.client
+      .from('workflow_status')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('sort_ordr', { ascending: true });
 
-    return statuses.map((status) => this.formatStatusResponse(status));
+    if (error) {
+      this.logger.error(`Failed to fetch workflow statuses: ${error.message}`);
+      throw error;
+    }
+
+    // 각 status별 task count 조회
+    const result = await Promise.all(
+      (statuses ?? []).map(async (status) => {
+        const { count } = await this.supabase.client
+          .from('task')
+          .select('id', { count: 'exact', head: true })
+          .eq('status_id', status.id)
+          .is('deleted_at', null);
+
+        return this.formatStatusResponse(status, count ?? 0);
+      }),
+    );
+
+    return result;
   }
 
   /**
    * WorkflowStatus 단건 조회
    */
   async findOne(id: string) {
-    const status = await this.prisma.workflow_status.findUnique({
-      where: { id },
-      include: {
-        project: true,
-        _count: {
-          select: { task: true },
-        },
-      },
-    });
+    const { data: status, error } = await this.supabase.client
+      .from('workflow_status')
+      .select('*, project:project_id(*)')
+      .eq('id', id)
+      .single();
 
-    if (!status) {
+    if (error || !status) {
       throw new NotFoundException(`Workflow status not found: ${id}`);
     }
 
-    return this.formatStatusResponse(status);
+    const { count } = await this.supabase.client
+      .from('task')
+      .select('id', { count: 'exact', head: true })
+      .eq('status_id', id)
+      .is('deleted_at', null);
+
+    return this.formatStatusResponse(status, count ?? 0);
   }
 
   /**
@@ -123,23 +146,25 @@ export class WorkflowStatusService {
   async update(id: string, dto: UpdateWorkflowStatusDto) {
     this.logger.log(`Updating workflow status: ${id}`);
 
-    const existing = await this.prisma.workflow_status.findUnique({
-      where: { id },
-    });
+    const { data: existing, error: findError } = await this.supabase.client
+      .from('workflow_status')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (!existing) {
+    if (findError || !existing) {
       throw new NotFoundException(`Workflow status not found: ${id}`);
     }
 
     // 이름 변경 시 중복 체크
     if (dto.name && dto.name !== existing.name) {
-      const duplicate = await this.prisma.workflow_status.findFirst({
-        where: {
-          project_id: existing.project_id,
-          name: dto.name,
-          NOT: { id },
-        },
-      });
+      const { data: duplicate } = await this.supabase.client
+        .from('workflow_status')
+        .select('id')
+        .eq('project_id', existing.project_id)
+        .eq('name', dto.name)
+        .neq('id', id)
+        .single();
 
       if (duplicate) {
         throw new ConflictException(
@@ -148,23 +173,24 @@ export class WorkflowStatusService {
       }
     }
 
-    const status = await this.prisma.workflow_status.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        sort_ordr: dto.sortOrder,
-        notion_option_id: dto.notionOptionId,
-      },
-      include: {
-        project: true,
-        _count: {
-          select: { task: true },
-        },
-      },
-    });
+    const updateData: Record<string, unknown> = {};
+    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.sortOrder !== undefined) updateData.sort_ordr = dto.sortOrder;
+    if (dto.notionOptionId !== undefined)
+      updateData.notion_option_id = dto.notionOptionId;
 
-    this.logger.log(`Workflow status updated: ${status.id}`);
-    return this.formatStatusResponse(status);
+    const { error } = await this.supabase.client
+      .from('workflow_status')
+      .update(updateData)
+      .eq('id', id);
+
+    if (error) {
+      this.logger.error(`Failed to update workflow status: ${error.message}`);
+      throw error;
+    }
+
+    this.logger.log(`Workflow status updated: ${id}`);
+    return this.findOne(id);
   }
 
   /**
@@ -173,12 +199,13 @@ export class WorkflowStatusService {
   async reorder(projectId: string, statusIds: string[]) {
     this.logger.log(`Reordering workflow statuses for project: ${projectId}`);
 
-    await this.prisma.$transaction(
+    // 각 status의 sort_ordr를 업데이트
+    await Promise.all(
       statusIds.map((id, index) =>
-        this.prisma.workflow_status.update({
-          where: { id },
-          data: { sort_ordr: index },
-        }),
+        this.supabase.client
+          .from('workflow_status')
+          .update({ sort_ordr: index })
+          .eq('id', id),
       ),
     );
 
@@ -187,22 +214,29 @@ export class WorkflowStatusService {
 
   /**
    * WorkflowStatus 삭제
-   * - 연결된 Task의 status_id는 null로 설정됨 (Cascade)
    */
   async remove(id: string) {
     this.logger.log(`Deleting workflow status: ${id}`);
 
-    const existing = await this.prisma.workflow_status.findUnique({
-      where: { id },
-    });
+    const { data: existing } = await this.supabase.client
+      .from('workflow_status')
+      .select('id')
+      .eq('id', id)
+      .single();
 
     if (!existing) {
       throw new NotFoundException(`Workflow status not found: ${id}`);
     }
 
-    await this.prisma.workflow_status.delete({
-      where: { id },
-    });
+    const { error } = await this.supabase.client
+      .from('workflow_status')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      this.logger.error(`Failed to delete workflow status: ${error.message}`);
+      throw error;
+    }
 
     this.logger.log(`Workflow status deleted: ${id}`);
     return { success: true, id };
@@ -211,7 +245,7 @@ export class WorkflowStatusService {
   /**
    * WorkflowStatus 응답 형식 포맷
    */
-  private formatStatusResponse(status: any) {
+  private formatStatusResponse(status: any, taskCount: number) {
     return {
       id: status.id,
       projectId: status.project_id,
@@ -219,7 +253,7 @@ export class WorkflowStatusService {
       name: status.name,
       sortOrder: status.sort_ordr,
       notionOptionId: status.notion_option_id,
-      taskCount: status._count?.task ?? 0,
+      taskCount,
     };
   }
 }

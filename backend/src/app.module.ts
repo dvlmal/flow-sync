@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaModule } from './prisma/prisma.module';
+import { SupabaseModule } from './supabase/supabase.module';
 import { NotionModule } from './notion/notion.module';
 import { TaskModule } from './task/task.module';
 import { ProjectModule } from './project/project.module';
@@ -12,7 +12,7 @@ import { validate } from './config/env.validation';
 
 /**
  * App 모듈
- * - Vercel 서버리스 호환 (BullMQ/Sync 모듈 제외)
+ * - Vercel 서버리스 호환 (Supabase JS Client 사용)
  * - 로컬에서 Sync 기능 사용 시 SyncModule 별도 실행 필요
  */
 @Module({
@@ -25,7 +25,7 @@ import { validate } from './config/env.validation';
     }),
 
     // 데이터베이스
-    PrismaModule,
+    SupabaseModule,
 
     // 기능 모듈
     NotionModule,

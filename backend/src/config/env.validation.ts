@@ -46,15 +46,15 @@ export class EnvironmentVariables {
   NOTION_DATABASE_ID: string;
 
   /**
-   * 데이터베이스 설정 (필수)
+   * Supabase 설정 (필수)
    */
   @IsString()
-  @IsNotEmpty({ message: 'DATABASE_URL is required' })
-  DATABASE_URL: string;
+  @IsNotEmpty({ message: 'SUPABASE_URL is required' })
+  SUPABASE_URL: string;
 
-  @IsOptional()
   @IsString()
-  DIRECT_URL?: string;
+  @IsNotEmpty({ message: 'SUPABASE_SERVICE_ROLE_KEY is required' })
+  SUPABASE_SERVICE_ROLE_KEY: string;
 
   /**
    * 동기화 설정

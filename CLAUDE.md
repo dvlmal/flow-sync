@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FlowSync is an MCP-based Notion-integrated project workflow management system. It combines a React frontend with a NestJS backend, using PostgreSQL (Supabase) as the primary database and Prisma as the ORM. The system enables Kanban-style workflow management with bidirectional Notion synchronization via MCP (Model Context Protocol).
+FlowSync is an MCP-based Notion-integrated project workflow management system. It combines a React frontend with a NestJS backend, using PostgreSQL (Supabase) as the primary database with Supabase JS Client. The system enables Kanban-style workflow management with bidirectional Notion synchronization via MCP (Model Context Protocol).
 
 ## Build and Development Commands
 
@@ -21,10 +21,6 @@ npm run format             # Prettier formatting
 npm run test               # Run unit tests
 npm run test:watch         # Tests in watch mode
 npm run test:e2e           # End-to-end tests
-
-npx prisma migrate dev     # Create/apply migrations
-npx prisma generate        # Generate Prisma client
-npx prisma db pull         # Pull schema from existing DB
 ```
 
 ### Frontend (React + Vite) - `/frontend`
@@ -49,7 +45,7 @@ NestJS Backend (port 4000)
     ├── WorkflowStatusModule ─── WorkflowStatusService, WorkflowStatusController
     ├── SyncModule ─── (선택적, 로컬 환경만) SyncQueueService, SyncProcessor, NotionSyncService
     ├── NotionModule ─── NotionService, NotionController
-    ├── PrismaModule ─── PrismaService (PostgreSQL 연결)
+    ├── SupabaseModule ─── SupabaseService (PostgreSQL 연결)
     └── ConfigModule ─── 환경 변수 관리
     │
     ▼
@@ -88,7 +84,7 @@ PostgreSQL (Supabase)
 | WorkflowStatusModule | Workflow Status CRUD, 순서 재정렬 |
 | SyncModule | BullMQ Queue/Worker, DLQ, Notion 동기화 **(로컬 전용, Vercel 제외)** |
 | NotionModule | Notion API integration (CRUD, pagination) |
-| PrismaModule | Prisma ORM, PostgreSQL 연결 |
+| SupabaseModule | Supabase JS Client, PostgreSQL 연결 |
 | ConfigModule | 환경 변수 검증 및 관리 |
 
 **Data Flow:**
@@ -99,7 +95,7 @@ PostgreSQL (Supabase)
 
 ## Database Schema
 
-Five main tables in Prisma schema:
+Five main tables in Supabase PostgreSQL:
 
 - **profiles**: User profiles with Notion user mapping
 - **project**: Projects linked to Notion databases via `notion_db_id`
@@ -111,7 +107,7 @@ Five main tables in Prisma schema:
 
 - Frontend proxies `/api` requests to `http://localhost:4000` (configured in vite.config.ts)
 - Vercel에서는 rewrites로 `/api/*` → `/_/backend/api/*` 라우팅
-- Backend uses `DATABASE_URL` for pooled connections, `DIRECT_URL` for Prisma migrations
+- Backend uses Supabase JS Client for database connections
 - React Query: 1-minute stale time, 1 retry default (constants in `QUERY_CONFIG`)
 - Code style: single quotes, trailing commas (Prettier)
 - **tsconfig.build.json**: SyncModule 빌드 제외 (Vercel 호환)
@@ -120,8 +116,8 @@ Five main tables in Prisma schema:
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `DATABASE_URL` | Supabase pooled connection URL | ✅ |
-| `DIRECT_URL` | Direct connection for Prisma migrations | |
+| `SUPABASE_URL` | Supabase project URL | ✅ |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | ✅ |
 | `NOTION_API_KEY` | Notion Integration API key | ✅ |
 | `NOTION_DATABASE_ID` | FlowSync Tasks database ID | ✅ |
 | `REDIS_URL` | Upstash Redis URL (로컬 Sync용) | |
@@ -139,7 +135,7 @@ Five main tables in Prisma schema:
 |-------|------------|
 | Frontend | React 19, Vite, TanStack Query, React Router, Tailwind CSS, Axios |
 | UI Components | dnd-kit (Drag & Drop), FullCalendar, Lucide Icons |
-| Backend | NestJS 11, Prisma 7, TypeScript, @notionhq/client 5.x |
+| Backend | NestJS 11, Supabase JS Client, TypeScript, @notionhq/client 5.x |
 | Database | PostgreSQL (Supabase), Notion Database |
 | Sync | BullMQ, Upstash Redis, Last Write Wins 충돌 해결 **(로컬 전용)** |
 | Deployment | Vercel (experimentalServices), Supabase |
@@ -163,7 +159,7 @@ frontend/src/
 ### Completed (1단계: 기반 구축)
 - [x] Cloud DB 환경 구성 (Supabase)
 - [x] React/NestJS 기본 구조 생성
-- [x] DB 스키마 설계 (Prisma)
+- [x] DB 스키마 설계 (Supabase)
 - [x] Notion MCP Server 연결
 - [x] NotionService 구현 (CRUD, 페이지네이션, 초기화 보장)
 
@@ -186,7 +182,7 @@ frontend/src/
 - [x] API rewrites 구성 (/api/* → /_/backend/api/*)
 - [x] SyncModule 조건부 빌드 (tsconfig.build.json)
 - [x] BullMQ optionalDependencies로 이동
-- [x] Prisma 표준 연결 방식 적용 (adapter-pg 제거)
+- [x] Supabase JS Client로 전환 (Prisma 제거, Vercel 서버리스 호환)
 
 ### Next (4단계: 동기화 고도화)
 - [ ] Notion → App Polling Scheduler
