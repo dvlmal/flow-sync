@@ -114,11 +114,14 @@ Five main tables in Supabase PostgreSQL:
 ## Key Configuration
 
 - Frontend proxies `/api` requests to `http://localhost:4000` (configured in vite.config.ts)
-- Vercel에서는 rewrites로 `/api/*` → `/_/backend/api/*` 라우팅
-- Backend uses Supabase JS Client for database connections
+- Vercel에서는 rewrites로 `/api/*` → `/api` (Serverless Function) 라우팅
+- Backend uses Supabase REST API (native fetch) for database connections
 - React Query: 1-minute stale time, 1 retry default (constants in `QUERY_CONFIG`)
 - Code style: single quotes, trailing commas (Prettier)
 - **tsconfig.build.json**: SyncModule 빌드 제외 (Vercel 호환)
+- **tsconfig.local.json**: 로컬 개발 시 SyncModule 포함 빌드
+- **dotenv 조건부 로드**: Vercel 환경에서는 자동 주입, 로컬에서만 dotenv 사용
+- **UTF-8 인코딩**: Express json 미들웨어로 명시적 설정
 
 ### Environment Variables (backend/.env)
 
@@ -197,6 +200,16 @@ frontend/src/
 - [x] BullMQ optionalDependencies로 이동
 - [x] Supabase REST API로 전환 (Prisma 제거, native fetch 사용)
 - [x] Vercel 네이티브 핸들러 구현 (@vercel/node 타입 사용)
+
+### Completed (동기화 개선)
+- [x] SyncModule 동적 로딩 (로컬 환경에서 Redis 감지 시 자동 로드)
+- [x] BullModule/SyncModule 동적 import (Vercel 빌드 호환)
+- [x] Sync 서비스 Supabase 마이그레이션 (SyncLogService, DlqService)
+- [x] TaskService DI 개선 (injection token으로 SyncQueueService 주입)
+- [x] 날짜 필드 null 지원 (startDate/endDate 명시적 제거 가능)
+- [x] CalendarView 종료일 처리 수정 (FullCalendar exclusive end date 보정)
+- [x] ListView 인라인 날짜 편집 기능 추가
+- [x] UTF-8 인코딩 명시적 설정
 
 ### Next (4단계: 동기화 고도화)
 - [ ] Notion → App Polling Scheduler (백엔드 스케줄러 구현 필요)
