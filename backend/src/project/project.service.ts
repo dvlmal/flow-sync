@@ -26,7 +26,7 @@ export class ProjectService {
     this.logger.log(`Creating project: ${dto.title}`);
 
     // Notion DB ID 중복 체크
-    const { data: existing } = await this.supabase.client
+    const { data: existing } = await this.supabase
       .from('project')
       .select('id')
       .eq('notion_db_id', dto.notionDbId)
@@ -38,7 +38,7 @@ export class ProjectService {
       );
     }
 
-    const { data: project, error } = await this.supabase.client
+    const { data: project, error } = await this.supabase
       .from('project')
       .insert({
         title: dto.title,
@@ -61,7 +61,7 @@ export class ProjectService {
    * Project 목록 조회
    */
   async findAll() {
-    const { data: projects, error } = await this.supabase.client
+    const { data: projects, error } = await this.supabase
       .from('project')
       .select('*')
       .order('created_at', { ascending: false });
@@ -75,12 +75,12 @@ export class ProjectService {
     const result = await Promise.all(
       (projects ?? []).map(async (project) => {
         const [statusesResult, taskCountResult] = await Promise.all([
-          this.supabase.client
+          this.supabase
             .from('workflow_status')
             .select('*')
             .eq('project_id', project.id)
             .order('sort_ordr', { ascending: true }),
-          this.supabase.client
+          this.supabase
             .from('task')
             .select('id', { count: 'exact', head: true })
             .eq('project_id', project.id)
@@ -102,7 +102,7 @@ export class ProjectService {
    * Project 단건 조회
    */
   async findOne(id: string) {
-    const { data: project, error } = await this.supabase.client
+    const { data: project, error } = await this.supabase
       .from('project')
       .select('*')
       .eq('id', id)
@@ -113,12 +113,12 @@ export class ProjectService {
     }
 
     const [statusesResult, taskCountResult] = await Promise.all([
-      this.supabase.client
+      this.supabase
         .from('workflow_status')
         .select('*')
         .eq('project_id', id)
         .order('sort_ordr', { ascending: true }),
-      this.supabase.client
+      this.supabase
         .from('task')
         .select('id', { count: 'exact', head: true })
         .eq('project_id', id)
@@ -136,7 +136,7 @@ export class ProjectService {
    * Notion DB ID로 Project 조회
    */
   async findByNotionDbId(notionDbId: string) {
-    const { data: project, error } = await this.supabase.client
+    const { data: project, error } = await this.supabase
       .from('project')
       .select('*')
       .eq('notion_db_id', notionDbId)
@@ -149,12 +149,12 @@ export class ProjectService {
     }
 
     const [statusesResult, taskCountResult] = await Promise.all([
-      this.supabase.client
+      this.supabase
         .from('workflow_status')
         .select('*')
         .eq('project_id', project.id)
         .order('sort_ordr', { ascending: true }),
-      this.supabase.client
+      this.supabase
         .from('task')
         .select('id', { count: 'exact', head: true })
         .eq('project_id', project.id)
@@ -177,7 +177,7 @@ export class ProjectService {
     // 존재 여부 확인
     await this.findOne(id);
 
-    const { error } = await this.supabase.client
+    const { error } = await this.supabase
       .from('project')
       .update({
         title: dto.title,
@@ -205,7 +205,7 @@ export class ProjectService {
     // 존재 여부 확인
     await this.findOne(id);
 
-    const { error } = await this.supabase.client.from('project').delete().eq('id', id);
+    const { error } = await this.supabase.from('project').delete().eq('id', id);
 
     if (error) {
       this.logger.error(`Failed to delete project: ${error.message}`);

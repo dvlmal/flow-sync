@@ -45,7 +45,7 @@ export class TaskService {
   async create(dto: CreateTaskDto) {
     this.logger.log(`Creating task: ${dto.title}`);
 
-    const { data: task, error } = await this.supabase.client
+    const { data: task, error } = await this.supabase
       .from('task')
       .insert({
         title: dto.title,
@@ -90,7 +90,7 @@ export class TaskService {
     const limit = Number(query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    let queryBuilder = this.supabase.client
+    let queryBuilder = this.supabase
       .from('task')
       .select(
         `
@@ -166,7 +166,7 @@ export class TaskService {
     if (dto.assignees !== undefined) updateData.assignees = dto.assignees;
     if (dto.tags !== undefined) updateData.tags = dto.tags.join(',');
 
-    const { error } = await this.supabase.client
+    const { error } = await this.supabase
       .from('task')
       .update(updateData)
       .eq('id', id);
@@ -206,7 +206,7 @@ export class TaskService {
 
     const notionPageId = existing.notion_page_id;
 
-    const { error } = await this.supabase.client
+    const { error } = await this.supabase
       .from('task')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
@@ -232,7 +232,7 @@ export class TaskService {
 
     await this.findOneInternal(id, true);
 
-    const { error } = await this.supabase.client.from('task').delete().eq('id', id);
+    const { error } = await this.supabase.from('task').delete().eq('id', id);
 
     if (error) {
       this.logger.error(`Failed to hard delete task: ${error.message}`);
@@ -255,7 +255,7 @@ export class TaskService {
       throw new NotFoundException(`Task is not deleted: ${id}`);
     }
 
-    const { error } = await this.supabase.client
+    const { error } = await this.supabase
       .from('task')
       .update({ deleted_at: null })
       .eq('id', id);
@@ -274,7 +274,7 @@ export class TaskService {
    * 프로젝트별 Task 통계
    */
   async getProjectStats(projectId: string) {
-    const { data: tasks, error } = await this.supabase.client
+    const { data: tasks, error } = await this.supabase
       .from('task')
       .select('status_id, priority')
       .eq('project_id', projectId)
@@ -324,7 +324,7 @@ export class TaskService {
    * 내부 조회 (관계 포함)
    */
   private async findOneInternal(id: string, includeDeleted = false) {
-    let queryBuilder = this.supabase.client
+    let queryBuilder = this.supabase
       .from('task')
       .select(
         `
