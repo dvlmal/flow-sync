@@ -189,14 +189,21 @@ export class TaskService {
 
     const task = await this.findOneInternal(id);
 
-    // Notion Page ID가 있으면 UPDATE Job 등록
-    if (existing.notion_page_id && this.syncQueueService) {
+    // Notion 동기화 Job 등록
+    if (this.syncQueueService) {
       const syncPayload = this.buildSyncPayload(task);
-      await this.syncQueueService.addUpdateJob(
-        task.id,
-        existing.notion_page_id,
-        syncPayload,
-      );
+      if (existing.notion_page_id) {
+        // 기존 Notion 페이지가 있으면 UPDATE Job
+        await this.syncQueueService.addUpdateJob(
+          task.id,
+          existing.notion_page_id,
+          syncPayload,
+        );
+      } else {
+        // Notion 페이지가 없으면 CREATE Job (새로 생성)
+        this.logger.log(`Task ${task.id} has no notion_page_id, creating new Notion page`);
+        await this.syncQueueService.addCreateJob(task.id, syncPayload);
+      }
     }
 
     this.logger.log(`Task updated: ${id}`);
@@ -333,18 +340,10 @@ export class TaskService {
 
   /**
    * 내부 조회 (관계 포함)
+   * Note: Supabase에서 foreign key 조인이 작동하지 않아 별도 조회
    */
   private async findOneInternal(id: string, includeDeleted = false) {
-    let queryBuilder = this.supabase
-      .from('task')
-      .select(
-        `
-        *,
-        project:project_id(*),
-        workflow_status:status_id(*)
-      `,
-      )
-      .eq('id', id);
+    let queryBuilder = this.supabase.from('task').select('*').eq('id', id);
 
     if (!includeDeleted) {
       queryBuilder = queryBuilder.is('deleted_at', null);
@@ -356,7 +355,29 @@ export class TaskService {
       throw new NotFoundException(`Task not found: ${id}`);
     }
 
-    return task;
+    // 관계 데이터 별도 조회
+    const [projectResult, statusResult] = await Promise.all([
+      task.project_id
+        ? this.supabase
+            .from('project')
+            .select('*')
+            .eq('id', task.project_id)
+            .single()
+        : { data: null },
+      task.status_id
+        ? this.supabase
+            .from('workflow_status')
+            .select('*')
+            .eq('id', task.status_id)
+            .single()
+        : { data: null },
+    ]);
+
+    return {
+      ...task,
+      project: projectResult.data,
+      workflow_status: statusResult.data,
+    };
   }
 
   /**
