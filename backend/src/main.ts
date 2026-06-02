@@ -1,8 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { json } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule.forRoot());
+
+  // UTF-8 인코딩 명시적 설정
+  app.use(json({ limit: '10mb' }));
+  app.use((req, res, next) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    next();
+  });
 
   // CORS 설정 (개발/프로덕션 환경 모두 지원)
   const allowedOrigins = [

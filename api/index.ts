@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../backend/src/app.module';
+import { json } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 let app: any;
@@ -9,6 +10,9 @@ async function bootstrap() {
     app = await NestFactory.create(AppModule.forRoot(), {
       logger: ['error', 'warn'],
     });
+
+    // UTF-8 인코딩 명시적 설정
+    app.use(json({ limit: '10mb' }));
 
     // CORS 설정
     app.enableCors({
