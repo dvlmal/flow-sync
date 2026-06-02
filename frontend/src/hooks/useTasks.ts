@@ -120,8 +120,8 @@ export function useUpdateTaskStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, statusId }: { id: string; statusId: string }) =>
-      updateTask(id, { statusId: statusId }),
+    mutationFn: ({ id, statusId }: { id: string; statusId: string | null }) =>
+      updateTask(id, { statusId: statusId || undefined }),
     onMutate: async ({ id, statusId }) => {
       await queryClient.cancelQueries({ queryKey: taskKeys.lists() });
 

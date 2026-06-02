@@ -178,13 +178,19 @@ export class TaskService {
     }
 
     // LWW: 현재 시간으로 updated_at 설정
+    // statusId 처리: undefined는 기존 값 유지, null은 명시적으로 null 설정
+    const statusIdValue =
+      dto.statusId === undefined
+        ? undefined // 기존 값 유지 (Prisma가 필드를 업데이트하지 않음)
+        : dto.statusId; // null 또는 UUID 값 (명시적으로 설정)
+
     const task = await this.prisma.task.update({
       where: { id },
       data: {
         title: dto.title,
         content: dto.content,
         project_id: dto.projectId,
-        status_id: dto.statusId,
+        status_id: statusIdValue,
         priority: dto.priority,
         start_date: dto.startDate ? new Date(dto.startDate) : undefined,
         end_date: dto.endDate ? new Date(dto.endDate) : undefined,

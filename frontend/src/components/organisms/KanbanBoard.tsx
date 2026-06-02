@@ -125,7 +125,7 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
       if (newStatusId !== currentStatusId) {
         updateTaskStatus.mutate({
           id: taskId,
-          statusId: newStatusId ?? '',
+          statusId: newStatusId,
         });
       }
     },

@@ -6,6 +6,7 @@ import {
   IsDateString,
   IsEnum,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 import { TaskPriority } from './create-task.dto';
 
@@ -27,9 +28,16 @@ export class UpdateTaskDto {
   @IsUUID()
   projectId?: string;
 
+  /**
+   * Workflow Status ID
+   * - undefined: 기존 값 유지
+   * - null: 명시적으로 "No Status"로 설정
+   * - string (UUID): 해당 status로 변경
+   */
   @IsOptional()
+  @ValidateIf((o) => o.statusId !== null)
   @IsUUID()
-  statusId?: string;
+  statusId?: string | null;
 
   @IsOptional()
   @IsEnum(TaskPriority)
