@@ -28,11 +28,14 @@ export function TaskBoard() {
   );
 
   // Set default project when projects load
+  // projects?.length만 의존성으로 사용하여 projects 배열 참조 변경으로 인한 불필요한 effect 실행 방지
+  const projectsLength = projects?.length ?? 0;
+  const firstProjectId = projects?.[0]?.id;
   useEffect(() => {
-    if (projects && projects.length > 0 && !selectedProjectId) {
-      setSelectedProjectId(projects[0].id);
+    if (projectsLength > 0 && !selectedProjectId && firstProjectId) {
+      setSelectedProjectId(firstProjectId);
     }
-  }, [projects, selectedProjectId]);
+  }, [projectsLength, selectedProjectId, firstProjectId]);
 
   // Get workflow statuses for selected project
   const { data: statuses = [], isLoading: statusesLoading } = useWorkflowStatuses(

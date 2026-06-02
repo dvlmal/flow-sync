@@ -73,6 +73,7 @@ export class WorkflowStatusService {
         name: dto.name,
         sort_ordr: sortOrder,
         notion_option_id: dto.notionOptionId,
+        color: dto.color ?? 'gray',
       })
       .select('*')
       .single();
@@ -106,6 +107,7 @@ export class WorkflowStatusService {
 
   /**
    * 프로젝트별 WorkflowStatus 목록 조회
+   * N+1 쿼리 문제 해결: 단일 쿼리로 task count 계산
    */
   async findByProject(projectId: string) {
     const { data: statuses, error } = await this.supabase
@@ -119,20 +121,34 @@ export class WorkflowStatusService {
       throw error;
     }
 
-    // 각 status별 task count 조회
-    const result = await Promise.all(
-      (statuses ?? []).map(async (status) => {
-        const { count } = await this.supabase
-          .from('task')
-          .select('id', { count: 'exact', head: true })
-          .eq('status_id', status.id)
-          .is('deleted_at', null);
+    if (!statuses || statuses.length === 0) {
+      return [];
+    }
 
-        return this.formatStatusResponse(status, count ?? 0);
-      }),
+    // 단일 쿼리로 모든 status의 task count를 한 번에 조회
+    const statusIds = statuses.map((s) => s.id);
+    const { data: taskCounts, error: countError } = await this.supabase
+      .from('task')
+      .select('status_id')
+      .in('status_id', statusIds)
+      .is('deleted_at', null);
+
+    if (countError) {
+      this.logger.error(`Failed to fetch task counts: ${countError.message}`);
+      throw countError;
+    }
+
+    // status_id별 task count 집계
+    const countMap = new Map<string, number>();
+    (taskCounts ?? []).forEach((task) => {
+      const currentCount = countMap.get(task.status_id) ?? 0;
+      countMap.set(task.status_id, currentCount + 1);
+    });
+
+    // 결과 매핑
+    return statuses.map((status) =>
+      this.formatStatusResponse(status, countMap.get(status.id) ?? 0),
     );
-
-    return result;
   }
 
   /**
@@ -196,6 +212,7 @@ export class WorkflowStatusService {
     if (dto.sortOrder !== undefined) updateData.sort_ordr = dto.sortOrder;
     if (dto.notionOptionId !== undefined)
       updateData.notion_option_id = dto.notionOptionId;
+    if (dto.color !== undefined) updateData.color = dto.color;
 
     const { error } = await this.supabase
       .from('workflow_status')
@@ -232,18 +249,37 @@ export class WorkflowStatusService {
 
   /**
    * WorkflowStatus 삭제
+   * 참조 무결성 검사: 해당 status를 사용하는 task가 있으면 삭제 거부
    */
   async remove(id: string) {
     this.logger.log(`Deleting workflow status: ${id}`);
 
     const { data: existing } = await this.supabase
       .from('workflow_status')
-      .select('id')
+      .select('id, name')
       .eq('id', id)
       .single();
 
     if (!existing) {
       throw new NotFoundException(`Workflow status not found: ${id}`);
+    }
+
+    // 참조 무결성 검사: 해당 status를 사용하는 task가 있는지 확인
+    const { count: taskCount, error: countError } = await this.supabase
+      .from('task')
+      .select('id', { count: 'exact', head: true })
+      .eq('status_id', id)
+      .is('deleted_at', null);
+
+    if (countError) {
+      this.logger.error(`Failed to check task references: ${countError.message}`);
+      throw countError;
+    }
+
+    if (taskCount && taskCount > 0) {
+      throw new ConflictException(
+        `Cannot delete workflow status '${existing.name}': ${taskCount} task(s) are using this status. Please move or delete the tasks first.`,
+      );
     }
 
     const { error } = await this.supabase
@@ -271,6 +307,7 @@ export class WorkflowStatusService {
       name: status.name,
       sortOrder: status.sort_ordr,
       notionOptionId: status.notion_option_id,
+      color: status.color ?? 'gray',
       taskCount,
     };
   }

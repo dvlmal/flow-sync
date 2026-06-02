@@ -3,7 +3,7 @@
  * Drag and drop Kanban board using dnd-kit
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -15,13 +15,14 @@ import {
   type DragEndEvent,
   type DragOverEvent,
 } from '@dnd-kit/core';
+import { useQueryClient } from '@tanstack/react-query';
 import { KanbanColumn } from './KanbanColumn';
 import { TaskCard } from './TaskCard';
 import { TaskModal } from './TaskModal';
 import { CreateTaskModal } from './CreateTaskModal';
 import { LoadingSpinner, EmptyState } from '../molecules';
-import { useUpdateTaskStatus } from '../../hooks';
-import type { Task, WorkflowStatus } from '../../types';
+import { useUpdateTaskStatus, taskKeys } from '../../hooks';
+import type { Task, WorkflowStatus, PaginatedResponse } from '../../types';
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -36,7 +37,12 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [defaultStatusId, setDefaultStatusId] = useState<string | undefined>();
 
+  const queryClient = useQueryClient();
   const updateTaskStatus = useUpdateTaskStatus();
+
+  // statuses를 ref로 관리하여 handleDragEnd에서 최신 값 참조
+  const statusesRef = useRef(statuses);
+  statusesRef.current = statuses;
 
   // Get selected task from tasks array (synced with cache)
   const selectedTask = useMemo(
@@ -89,6 +95,11 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
     // Could add visual feedback during drag over
   }, []);
 
+  /**
+   * handleDragEnd 최적화: tasks 배열 대신 queryClient에서 최신 데이터 조회
+   * - tasks 배열 변경 시 불필요한 콜백 재생성 방지
+   * - 드래그 완료 시점의 최신 데이터 사용 보장
+   */
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
@@ -99,25 +110,39 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
       const taskId = active.id as string;
       const overId = over.id as string;
 
-      // Find the task
-      const task = tasks.find((t) => t.id === taskId);
+      // queryClient에서 최신 task 데이터 조회
+      const cachedData = queryClient.getQueriesData<PaginatedResponse<Task>>({
+        queryKey: taskKeys.lists(),
+      });
+
+      // 캐시된 task 목록에서 task 찾기
+      let task: Task | undefined;
+      let targetTask: Task | undefined;
+      for (const [, data] of cachedData) {
+        if (data?.data) {
+          if (!task) task = data.data.find((t) => t.id === taskId);
+          if (!targetTask && overId !== 'no-status') {
+            targetTask = data.data.find((t) => t.id === overId);
+          }
+          if (task && (targetTask || overId === 'no-status')) break;
+        }
+      }
+
       if (!task) return;
 
       // Determine target status
       let newStatusId: string | null = null;
 
-      // Check if dropped on a column
-      const targetStatus = statuses.find((s) => s.id === overId);
+      // Check if dropped on a column (use ref for latest statuses)
+      const currentStatuses = statusesRef.current;
+      const targetStatus = currentStatuses.find((s) => s.id === overId);
       if (targetStatus) {
         newStatusId = targetStatus.id;
       } else if (overId === 'no-status') {
         newStatusId = null;
-      } else {
-        // Check if dropped on another task - get that task's status
-        const targetTask = tasks.find((t) => t.id === overId);
-        if (targetTask) {
-          newStatusId = targetTask.statusId ?? null;
-        }
+      } else if (targetTask) {
+        // Dropped on another task - get that task's status
+        newStatusId = targetTask.statusId ?? null;
       }
 
       // Only update if status changed
@@ -129,7 +154,7 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
         });
       }
     },
-    [tasks, statuses, updateTaskStatus]
+    [queryClient, updateTaskStatus]
   );
 
   const handleAddTask = useCallback((statusId?: string) => {

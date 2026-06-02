@@ -3,8 +3,15 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchAllWorkflowStatuses, fetchWorkflowStatuses, reorderWorkflowStatuses } from '../api/workflow-statuses';
-import type { WorkflowStatus } from '../types';
+import {
+  fetchAllWorkflowStatuses,
+  fetchWorkflowStatuses,
+  reorderWorkflowStatuses,
+  createWorkflowStatus,
+  updateWorkflowStatus,
+  deleteWorkflowStatus,
+} from '../api/workflow-statuses';
+import type { WorkflowStatus, CreateWorkflowStatusDto, UpdateWorkflowStatusDto } from '../types';
 
 // Query keys
 export const workflowStatusKeys = {
@@ -72,6 +79,53 @@ export function useReorderWorkflowStatuses() {
     },
     onSettled: (_data, _err, { projectId }) => {
       queryClient.invalidateQueries({ queryKey: workflowStatusKeys.byProject(projectId) });
+    },
+  });
+}
+
+/**
+ * Hook to create a workflow status
+ */
+export function useCreateWorkflowStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (dto: CreateWorkflowStatusDto) => createWorkflowStatus(dto),
+    onSuccess: (newStatus) => {
+      // Invalidate project-specific query
+      queryClient.invalidateQueries({ queryKey: workflowStatusKeys.byProject(newStatus.projectId) });
+      // Invalidate all statuses list
+      queryClient.invalidateQueries({ queryKey: workflowStatusKeys.list() });
+    },
+  });
+}
+
+/**
+ * Hook to update a workflow status
+ */
+export function useUpdateWorkflowStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: UpdateWorkflowStatusDto }) => updateWorkflowStatus(id, dto),
+    onSuccess: (updatedStatus) => {
+      queryClient.invalidateQueries({ queryKey: workflowStatusKeys.byProject(updatedStatus.projectId) });
+      queryClient.invalidateQueries({ queryKey: workflowStatusKeys.list() });
+    },
+  });
+}
+
+/**
+ * Hook to delete a workflow status
+ */
+export function useDeleteWorkflowStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: { id: string; projectId: string }) => deleteWorkflowStatus(id),
+    onSuccess: (_data, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: workflowStatusKeys.byProject(projectId) });
+      queryClient.invalidateQueries({ queryKey: workflowStatusKeys.list() });
     },
   });
 }

@@ -6,13 +6,15 @@
 import { clsx } from 'clsx';
 import { StatusDot } from '../atoms';
 import { STATUS_LABELS } from '../../types';
+import type { WorkflowStatusColor } from '../../types';
 
 interface StatusBadgeProps {
   status: string;
+  color?: WorkflowStatusColor | null;
   className?: string;
 }
 
-export function StatusBadge({ status, className }: StatusBadgeProps) {
+export function StatusBadge({ status, color, className }: StatusBadgeProps) {
   const label = STATUS_LABELS[status] ?? status;
 
   return (
@@ -23,7 +25,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
         className
       )}
     >
-      <StatusDot status={status} size="sm" />
+      <StatusDot status={status} color={color} size="sm" />
       {label}
     </span>
   );

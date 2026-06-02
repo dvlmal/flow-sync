@@ -6,7 +6,9 @@ MCP 기반 노션 연동형 프로젝트 워크플로우 관리 시스템
 
 - **멀티 뷰 지원**: Kanban Board, Calendar, List View
 - **Notion 양방향 동기화**: MCP(Model Context Protocol) 기반 자동 동기화
-- **워크플로우 커스터마이징**: 프로젝트별 상태 단계 설정
+- **워크플로우 커스터마이징**: 프로젝트별 상태 단계 설정 (8색 팔레트 지원)
+- **프로젝트 관리**: 프로젝트 CRUD 및 워크플로우 상태 관리
+- **동기화 모니터링**: 동기화 로그 조회 및 수동 동기화 기능
 - **문서 자동 생성**: 업무 완료 시 Notion 보고서 템플릿 자동 생성
 
 ## 기술 스택
@@ -111,8 +113,8 @@ flow-sync/
 ├── frontend/                # React 프론트엔드
 │   ├── src/
 │   │   ├── components/      # Atomic Design 컴포넌트
-│   │   ├── pages/           # TaskBoard 메인 페이지
-│   │   ├── hooks/           # React Query 훅
+│   │   ├── pages/           # Dashboard, TaskBoard, ProjectManagement, Settings, SyncLogs
+│   │   ├── hooks/           # React Query 훅 (CRUD 지원)
 │   │   └── api/             # API 클라이언트
 │   └── public/
 ├── .claude/

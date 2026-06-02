@@ -26,4 +26,9 @@ export class CreateWorkflowStatusDto {
   @IsOptional()
   @IsString()
   notionOptionId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  color?: string;
 }

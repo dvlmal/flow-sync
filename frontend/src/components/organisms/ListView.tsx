@@ -346,7 +346,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                           trigger={
                             <div className="inline-block">
                               {status ? (
-                                <StatusBadge status={status.name} />
+                                <StatusBadge status={status.name} color={status.color} />
                               ) : (
                                 <span className="text-sm text-gray-400">상태 없음</span>
                               )}
@@ -359,7 +359,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                               selected={s.id === task.statusId}
                               onClick={() => handleInlineEdit(task.id, 'statusId', s.id)}
                             >
-                              <StatusBadge status={s.name} />
+                              <StatusBadge status={s.name} color={s.color} />
                             </DropdownItem>
                           ))}
                         </Dropdown>

@@ -109,7 +109,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {currentStatus && <StatusBadge status={currentStatus.name} />}
+            {currentStatus && <StatusBadge status={currentStatus.name} color={currentStatus.color} />}
             <span className="text-xs text-gray-500">
               수정됨 {task.updatedAt ? format(parseISO(task.updatedAt), 'yyyy년 M월 d일') : '알 수 없음'}
             </span>

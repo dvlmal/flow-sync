@@ -108,7 +108,7 @@ Five main tables in Supabase PostgreSQL:
 - **profiles**: User profiles with Notion user mapping
 - **project**: Projects linked to Notion databases via `notion_db_id`
 - **task**: Tasks with `notion_page_id`, assignees (JSON), tags, raw_notion_data (JSON)
-- **workflow_status**: Kanban status columns per project with `notion_option_id`
+- **workflow_status**: Kanban status columns per project with `notion_option_id`, `color` (8색 지원)
 - **sync_log**: Sync history tracking direction, status, retry_count, errors
 
 ## Key Configuration
@@ -154,12 +154,12 @@ Five main tables in Supabase PostgreSQL:
 frontend/src/
 ├── components/
 │   ├── atoms/       # Button, Input, Tag, Avatar, StatusDot, PriorityIcon
-│   ├── molecules/   # Dropdown, ViewSwitcher, LoadingSpinner, AvatarGroup
+│   ├── molecules/   # Dropdown, ViewSwitcher, LoadingSpinner, AvatarGroup, StatusBadge
 │   └── organisms/   # KanbanBoard, CalendarView, ListView, TaskCard, TaskModal
-├── pages/           # TaskBoard (메인 대시보드)
-├── hooks/           # useTasks, useProjects, useWorkflowStatuses
+├── pages/           # Dashboard, TaskBoard, ProjectManagement, Settings, SyncLogs
+├── hooks/           # useTasks, useProjects, useWorkflowStatuses (CRUD 지원)
 ├── api/             # API 클라이언트 (tasks, projects, workflow-statuses)
-└── types/           # TypeScript 타입 정의
+└── types/           # TypeScript 타입 정의 (WorkflowStatusColor 포함)
 ```
 
 ## Development Progress
@@ -180,10 +180,15 @@ frontend/src/
 
 ### Completed (3단계: UI 개발)
 - [x] Kanban Board (dnd-kit 드래그 앤 드롭)
-- [x] Calendar View (FullCalendar)
+- [x] Calendar View (FullCalendar, 한글화, 공휴일 표시)
 - [x] List View (정렬, 필터링)
-- [x] Task 생성/수정 Modal
+- [x] Task 생성/수정 Modal (시작일/종료일 지원)
 - [x] Atomic Design 컴포넌트 구조
+- [x] Dashboard 페이지 (프로젝트별 작업 현황)
+- [x] Project Management 페이지 (CRUD + 워크플로우 상태 관리)
+- [x] Settings 페이지 (수동 동기화, 동기화 로그 연결)
+- [x] SyncLogs 페이지 (동기화 이력 및 오류 조회)
+- [x] Workflow Status 색상 선택 기능 (8색 팔레트)
 
 ### Completed (Vercel 배포)
 - [x] Vercel Serverless Functions 설정 (`/api/index.ts`)
@@ -194,7 +199,9 @@ frontend/src/
 - [x] Vercel 네이티브 핸들러 구현 (@vercel/node 타입 사용)
 
 ### Next (4단계: 동기화 고도화)
-- [ ] Notion → App Polling Scheduler
-- [ ] Conflict Resolution 강화
-- [ ] Supabase Realtime 연동
+- [ ] Notion → App Polling Scheduler (백엔드 스케줄러 구현 필요)
+- [ ] Conflict Resolution 강화 (Last Write Wins → 사용자 선택 옵션)
+- [ ] Supabase Realtime 연동 (실시간 UI 업데이트)
 - [ ] Sync Worker 별도 서버 배포 (Railway/Render)
+- [ ] Settings 페이지 백엔드 API 연동 (수동 동기화)
+- [ ] SyncLogs 페이지 백엔드 API 연동

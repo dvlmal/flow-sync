@@ -4,10 +4,12 @@
  */
 
 import { clsx } from 'clsx';
-import { STATUS_COLORS } from '../../types';
+import { STATUS_COLORS, WORKFLOW_STATUS_COLORS } from '../../types';
+import type { WorkflowStatusColor } from '../../types';
 
 interface StatusDotProps {
-  status: string;
+  status?: string;
+  color?: WorkflowStatusColor | null;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
@@ -18,8 +20,11 @@ const sizeClasses = {
   lg: 'w-3 h-3',
 };
 
-export function StatusDot({ status, size = 'md', className }: StatusDotProps) {
-  const colorClass = STATUS_COLORS[status] ?? 'bg-gray-400';
+export function StatusDot({ status, color, size = 'md', className }: StatusDotProps) {
+  // color prop takes precedence over status-based color lookup
+  const colorClass = color
+    ? WORKFLOW_STATUS_COLORS[color]?.bg ?? 'bg-gray-400'
+    : STATUS_COLORS[status ?? ''] ?? 'bg-gray-400';
 
   return (
     <span
@@ -30,7 +35,7 @@ export function StatusDot({ status, size = 'md', className }: StatusDotProps) {
         className
       )}
       role="img"
-      aria-label={status}
+      aria-label={status ?? color ?? 'status'}
     />
   );
 }

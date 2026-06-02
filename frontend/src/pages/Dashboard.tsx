@@ -244,7 +244,7 @@ export function Dashboard() {
                     key={status.id}
                     className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 rounded-lg"
                   >
-                    <StatusBadge status={status.name} />
+                    <StatusBadge status={status.name} color={status.color} />
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       {statusTaskCounts[status.id] ?? 0}
                     </span>
@@ -253,17 +253,20 @@ export function Dashboard() {
               </div>
             ) : !selectedProjectId && uniqueStatusNames.length > 0 ? (
               <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                {uniqueStatusNames.map((statusName) => (
-                  <div
-                    key={statusName}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                  >
-                    <StatusBadge status={statusName} />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {statusTaskCounts[statusName] ?? 0}
-                    </span>
-                  </div>
-                ))}
+                {uniqueStatusNames.map((statusName) => {
+                  const statusInfo = statusMap.get(statusName);
+                  return (
+                    <div
+                      key={statusName}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                    >
+                      <StatusBadge status={statusName} color={statusInfo?.color} />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {statusTaskCounts[statusName] ?? 0}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
 
@@ -393,7 +396,7 @@ function TaskItem({ task, status }: TaskItemProps) {
           {task.title}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
-          {status?.name && <StatusBadge status={status.name} />}
+          {status?.name && <StatusBadge status={status.name} color={status.color} />}
           {task.endDate && (
             <span className="text-xs text-gray-500">
               {format(parseISO(task.endDate), 'M/d')}

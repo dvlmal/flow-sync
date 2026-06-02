@@ -16,12 +16,55 @@ export interface Project {
   updatedAt?: string | null;
 }
 
+export interface CreateProjectDto {
+  title: string;
+  notionDbId: string;
+  description?: string;
+}
+
+export interface UpdateProjectDto {
+  title?: string;
+  notionDbId?: string;
+  description?: string;
+}
+
+export type WorkflowStatusColor =
+  | 'gray' | 'red' | 'orange' | 'yellow'
+  | 'green' | 'blue' | 'purple' | 'pink';
+
+export const WORKFLOW_STATUS_COLORS: Record<WorkflowStatusColor, { bg: string; label: string }> = {
+  gray: { bg: 'bg-gray-400', label: '회색' },
+  red: { bg: 'bg-red-500', label: '빨강' },
+  orange: { bg: 'bg-orange-500', label: '주황' },
+  yellow: { bg: 'bg-yellow-500', label: '노랑' },
+  green: { bg: 'bg-green-500', label: '초록' },
+  blue: { bg: 'bg-blue-500', label: '파랑' },
+  purple: { bg: 'bg-purple-500', label: '보라' },
+  pink: { bg: 'bg-pink-500', label: '분홍' },
+};
+
 export interface WorkflowStatus {
   id: string;
   projectId: string;
   name: string;
   sortOrder?: number | null;
   notionOptionId?: string | null;
+  color?: WorkflowStatusColor | null;
+}
+
+export interface CreateWorkflowStatusDto {
+  projectId: string;
+  name: string;
+  sortOrder?: number;
+  notionOptionId?: string;
+  color?: WorkflowStatusColor;
+}
+
+export interface UpdateWorkflowStatusDto {
+  name?: string;
+  sortOrder?: number;
+  notionOptionId?: string;
+  color?: WorkflowStatusColor;
 }
 
 export interface Task {

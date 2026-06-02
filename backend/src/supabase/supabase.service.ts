@@ -138,6 +138,19 @@ class QueryBuilder {
     return this;
   }
 
+  in(column: string, values: (string | number)[]): QueryBuilder {
+    if (values.length === 0) {
+      // 빈 배열인 경우 항상 false가 되는 조건 추가
+      this.filters.push(`${column}=eq.impossible_value_that_never_matches`);
+    } else {
+      const escapedValues = values.map((v) =>
+        typeof v === 'string' ? `"${v}"` : v
+      );
+      this.filters.push(`${column}=in.(${escapedValues.join(',')})`);
+    }
+    return this;
+  }
+
   order(column: string, options?: { ascending?: boolean }): QueryBuilder {
     const direction = options?.ascending === false ? 'desc' : 'asc';
     this.orderClause = `order=${column}.${direction}`;

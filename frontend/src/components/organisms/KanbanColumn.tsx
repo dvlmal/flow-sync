@@ -40,7 +40,7 @@ export function KanbanColumn({ status, tasks, onTaskClick, onAddTask }: KanbanCo
       {/* Column Header */}
       <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center gap-2">
-          <StatusDot status={status.name} />
+          <StatusDot status={status.name} color={status.color} />
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
             {statusLabel}
           </h3>
