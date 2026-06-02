@@ -138,6 +138,21 @@ class QueryBuilder {
     return this;
   }
 
+  gte(column: string, value: string | number): QueryBuilder {
+    this.filters.push(`${column}=gte.${value}`);
+    return this;
+  }
+
+  lte(column: string, value: string | number): QueryBuilder {
+    this.filters.push(`${column}=lte.${value}`);
+    return this;
+  }
+
+  lt(column: string, value: string | number): QueryBuilder {
+    this.filters.push(`${column}=lt.${value}`);
+    return this;
+  }
+
   in(column: string, values: (string | number)[]): QueryBuilder {
     if (values.length === 0) {
       // 빈 배열인 경우 항상 false가 되는 조건 추가

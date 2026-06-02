@@ -6,7 +6,7 @@ let app: any;
 
 async function bootstrap() {
   if (!app) {
-    app = await NestFactory.create(AppModule, {
+    app = await NestFactory.create(AppModule.forRoot(), {
       logger: ['error', 'warn'],
     });
 

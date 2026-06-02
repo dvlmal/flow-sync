@@ -43,13 +43,27 @@ export class UpdateTaskDto {
   @IsEnum(TaskPriority)
   priority?: TaskPriority;
 
+  /**
+   * Start Date
+   * - undefined: 기존 값 유지
+   * - null: 명시적으로 날짜 제거
+   * - string (ISO): 해당 날짜로 변경
+   */
   @IsOptional()
+  @ValidateIf((o) => o.startDate !== null)
   @IsDateString()
-  startDate?: string;
+  startDate?: string | null;
 
+  /**
+   * End Date
+   * - undefined: 기존 값 유지
+   * - null: 명시적으로 날짜 제거
+   * - string (ISO): 해당 날짜로 변경
+   */
   @IsOptional()
+  @ValidateIf((o) => o.endDate !== null)
   @IsDateString()
-  endDate?: string;
+  endDate?: string | null;
 
   @IsOptional()
   @IsArray()

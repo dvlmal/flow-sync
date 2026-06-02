@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { SyncQueueService } from './services/sync-queue.service';
 import { NotionSyncService } from './services/notion-sync.service';
@@ -8,13 +8,16 @@ import { SyncProcessor } from './processors/sync.processor';
 import { SyncController } from './sync.controller';
 import { NotionModule } from '../notion/notion.module';
 import { SYNC_QUEUE_NAME, DLQ_QUEUE_NAME } from './constants/queue.constants';
+import { SYNC_QUEUE_SERVICE } from '../common/constants/injection-tokens';
 
 /**
- * 동기화 모듈
+ * 동기화 모듈 (Global)
  * - BullMQ 큐 관리
  * - Notion 동기화 Worker
  * - DLQ 처리
+ * - Global 모듈로 설정하여 다른 모듈에서 SyncQueueService 사용 가능
  */
+@Global()
 @Module({
   imports: [
     // Sync Queue 등록
@@ -53,7 +56,12 @@ import { SYNC_QUEUE_NAME, DLQ_QUEUE_NAME } from './constants/queue.constants';
     SyncLogService,
     DlqService,
     SyncProcessor,
+    // TaskService에서 injection token으로 주입받을 수 있도록 alias 제공
+    {
+      provide: SYNC_QUEUE_SERVICE,
+      useExisting: SyncQueueService,
+    },
   ],
-  exports: [SyncQueueService, SyncLogService],
+  exports: [SyncQueueService, SyncLogService, SYNC_QUEUE_SERVICE],
 })
 export class SyncModule {}

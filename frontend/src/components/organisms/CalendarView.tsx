@@ -104,11 +104,17 @@ function taskToEvent(task: Task, statuses: WorkflowStatus[]): EventInput | null 
 
   const bgColor = colorMap[statusColor] ?? '#9ca3af';
 
+  // FullCalendar treats end date as exclusive, so add 1 day to make it inclusive
+  // e.g., end date 6/2 should display through 6/2, not just 6/1
+  const endDate = new Date(task.endDate);
+  endDate.setDate(endDate.getDate() + 1);
+  const exclusiveEndDate = endDate.toISOString();
+
   return {
     id: task.id,
     title: task.title,
     start: task.startDate ?? task.endDate,
-    end: task.endDate,
+    end: exclusiveEndDate,
     allDay: true,
     backgroundColor: bgColor,
     borderColor: bgColor,
@@ -148,10 +154,16 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
 
   // Handle date selection for creating new task
   const handleDateSelect = useCallback((info: DateSelectArg) => {
+    // FullCalendar returns exclusive end date, subtract 1 day to get inclusive end date
+    const adjustedEnd = new Date(info.end);
+    if (info.allDay) {
+      adjustedEnd.setDate(adjustedEnd.getDate() - 1);
+    }
+
     // Store selected date range for new task
     setSelectedDateRange({
       start: info.start.toISOString(),
-      end: info.end.toISOString(),
+      end: adjustedEnd.toISOString(),
     });
     setCreateModalOpen(true);
   }, []);
@@ -162,7 +174,14 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
       const task = info.event.extendedProps.task as Task;
       const startDate = info.event.start;
       // For allDay events, end might be null (same day) - use start date in that case
-      const endDate = info.event.end ?? info.event.start;
+      let endDate = info.event.end ?? info.event.start;
+
+      // FullCalendar returns exclusive end date, subtract 1 day to get inclusive end date
+      if (endDate && info.event.allDay) {
+        const adjustedEnd = new Date(endDate);
+        adjustedEnd.setDate(adjustedEnd.getDate() - 1);
+        endDate = adjustedEnd;
+      }
 
       if (startDate && endDate) {
         updateTask.mutate({
@@ -182,7 +201,14 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
     (info: EventResizeDoneArg) => {
       const task = info.event.extendedProps.task as Task;
       const startDate = info.event.start;
-      const endDate = info.event.end ?? info.event.start;
+      let endDate = info.event.end ?? info.event.start;
+
+      // FullCalendar returns exclusive end date, subtract 1 day to get inclusive end date
+      if (endDate && info.event.allDay) {
+        const adjustedEnd = new Date(endDate);
+        adjustedEnd.setDate(adjustedEnd.getDate() - 1);
+        endDate = adjustedEnd;
+      }
 
       if (startDate && endDate) {
         updateTask.mutate({

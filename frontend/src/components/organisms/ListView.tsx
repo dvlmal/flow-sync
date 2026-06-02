@@ -3,7 +3,7 @@
  * Table-based task list with sorting, filtering, and inline editing
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   ChevronUp,
   ChevronDown,
@@ -11,6 +11,7 @@ import {
   Search,
   Filter,
   Plus,
+  Calendar,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format, parseISO } from 'date-fns';
@@ -50,6 +51,77 @@ const priorityOrder: Record<TaskPriority, number> = {
   Medium: 2,
   Low: 1,
 };
+
+// Inline date editor component
+interface InlineDateEditorProps {
+  value: string | null;
+  taskId: string;
+  field: 'startDate' | 'endDate';
+  onSave: (taskId: string, field: string, value: string | null) => void;
+}
+
+function InlineDateEditor({ value, taskId, field, onSave }: InlineDateEditorProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.showPicker?.();
+    }
+  }, [isEditing]);
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    if (newValue) {
+      // Convert to ISO string for API
+      const date = new Date(newValue);
+      date.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
+      onSave(taskId, field, date.toISOString());
+    } else {
+      // Clear the date by sending null
+      onSave(taskId, field, null);
+    }
+    setIsEditing(false);
+  };
+
+  const handleBlur = () => {
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setIsEditing(false);
+    }
+  };
+
+  // Format date for input value (YYYY-MM-DD)
+  const inputValue = value ? format(parseISO(value), 'yyyy-MM-dd') : '';
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        type="date"
+        defaultValue={inputValue}
+        onChange={handleDateChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        className="w-full px-1 py-0.5 text-sm rounded border border-blue-500 bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setIsEditing(true)}
+      className="inline-flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-1 py-0.5 rounded transition-colors"
+    >
+      {value ? format(parseISO(value), 'M/d') : '-'}
+      <Calendar className="w-3 h-3 opacity-0 group-hover:opacity-100" />
+    </button>
+  );
+}
 
 export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProps) {
   const [sort, setSort] = useState<SortState>({ field: 'createdAt', direction: 'desc' });
@@ -132,11 +204,16 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
   }, []);
 
   const handleInlineEdit = useCallback(
-    async (taskId: string, field: string, value: string) => {
+    async (taskId: string, field: string, value: string | null) => {
       try {
+        // For date fields, pass null to clear; for other fields, use undefined for empty
+        const fieldValue = (field === 'startDate' || field === 'endDate')
+          ? value
+          : (value || undefined);
+
         await updateTask.mutateAsync({
           id: taskId,
-          dto: { [field]: value || undefined },
+          dto: { [field]: fieldValue },
         });
       } catch (error) {
         console.error('Failed to update task:', error);
@@ -396,21 +473,23 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                       </td>
 
                       {/* Start Date */}
-                      <td className="px-4 py-3">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {task.startDate
-                            ? format(parseISO(task.startDate), 'M/d')
-                            : '-'}
-                        </span>
+                      <td className="px-4 py-3 group" onClick={(e) => e.stopPropagation()}>
+                        <InlineDateEditor
+                          value={task.startDate ?? null}
+                          taskId={task.id}
+                          field="startDate"
+                          onSave={handleInlineEdit}
+                        />
                       </td>
 
                       {/* Due Date */}
-                      <td className="px-4 py-3">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {task.endDate
-                            ? format(parseISO(task.endDate), 'M/d')
-                            : '-'}
-                        </span>
+                      <td className="px-4 py-3 group" onClick={(e) => e.stopPropagation()}>
+                        <InlineDateEditor
+                          value={task.endDate ?? null}
+                          taskId={task.id}
+                          field="endDate"
+                          onSave={handleInlineEdit}
+                        />
                       </td>
 
                       {/* Assignees */}

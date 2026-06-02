@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue, Job } from 'bullmq';
-import { PrismaService } from '../../prisma/prisma.service';
+import { SupabaseService } from '../../supabase/supabase.service';
 import {
   SyncJobData,
   SyncStatus,
@@ -20,6 +20,7 @@ import {
  * - 실패한 동기화 Job 관리
  * - 수동/자동 재처리 메커니즘
  * - 모니터링 및 알림
+ * - Supabase REST API 사용
  */
 @Injectable()
 export class DlqService {
@@ -30,7 +31,7 @@ export class DlqService {
     private readonly syncQueue: Queue<SyncJobData>,
     @InjectQueue(DLQ_QUEUE_NAME)
     private readonly dlqQueue: Queue<DlqEntry>,
-    private readonly prisma: PrismaService,
+    private readonly supabase: SupabaseService,
   ) {}
 
   /**
@@ -53,16 +54,18 @@ export class DlqService {
     });
 
     // DB에도 기록
-    await this.prisma.sync_log.create({
-      data: {
-        task_id: job.data.taskId,
-        direction: 'APP_TO_NOTION',
-        sync_status: SyncStatus.IN_DLQ,
-        error_message: failureReason.substring(0, 1000),
-        retry_count: job.attemptsMade,
-        synced_at: new Date(),
-      },
+    const { error } = await this.supabase.from('sync_log').insert({
+      task_id: job.data.taskId,
+      direction: 'APP_TO_NOTION',
+      sync_status: SyncStatus.IN_DLQ,
+      error_message: failureReason.substring(0, 1000),
+      retry_count: job.attemptsMade,
+      synced_at: new Date().toISOString(),
     });
+
+    if (error) {
+      this.logger.error(`Failed to log DLQ entry: ${error.message}`);
+    }
 
     this.logger.warn(
       `Job ${job.id} moved to DLQ: ${failureReason} (${job.attemptsMade} attempts)`,
@@ -85,13 +88,16 @@ export class DlqService {
       const { taskId, operation } = entry.originalJob;
 
       // DB에서 최신 Task 데이터 조회 (과거 데이터로 인한 롤백 방지)
-      const currentTask = await this.prisma.task.findUnique({
-        where: { id: taskId },
-        include: {
-          project: true,
-          workflow_status: true,
-        },
-      });
+      const { data: currentTask, error: taskError } = await this.supabase
+        .from('task')
+        .select('*, project(*), workflow_status:workflow_status_id(*)')
+        .eq('id', taskId)
+        .single();
+
+      if (taskError && taskError.message !== 'Row not found') {
+        this.logger.error(`Failed to fetch task: ${taskError.message}`);
+        return false;
+      }
 
       // Task가 삭제된 경우
       if (!currentTask) {
@@ -110,8 +116,12 @@ export class DlqService {
             content: currentTask.content ?? undefined,
             status: currentTask.workflow_status?.name,
             priority: currentTask.priority ?? undefined,
-            startDate: currentTask.start_date?.toISOString().split('T')[0],
-            endDate: currentTask.end_date?.toISOString().split('T')[0],
+            startDate: currentTask.start_date
+              ? currentTask.start_date.split('T')[0]
+              : undefined,
+            endDate: currentTask.end_date
+              ? currentTask.end_date.split('T')[0]
+              : undefined,
             assignees: currentTask.assignees as string[] | undefined,
             tags: currentTask.tags ? currentTask.tags.split(',') : undefined,
           }
@@ -140,7 +150,7 @@ export class DlqService {
         `DLQ entry ${dlqJobId} requeued as ${newJob.id} with fresh data`,
       );
       return true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Failed to retry DLQ entry ${dlqJobId}: ${error.message}`,
       );
@@ -181,19 +191,17 @@ export class DlqService {
     ]);
 
     // DB에서 최근 DLQ 통계 (24시간)
-    const recentDlqCount = await this.prisma.sync_log.count({
-      where: {
-        sync_status: SyncStatus.IN_DLQ,
-        synced_at: {
-          gte: new Date(Date.now() - TIME_CONSTANTS.ONE_DAY_MS),
-        },
-      },
-    });
+    const oneDayAgo = new Date(Date.now() - TIME_CONSTANTS.ONE_DAY_MS);
+    const { count: recentDlqCount } = await this.supabase
+      .from('sync_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('sync_status', SyncStatus.IN_DLQ)
+      .gte('synced_at', oneDayAgo.toISOString());
 
     return {
       queueCounts: total,
       waiting,
-      recentDlqCount,
+      recentDlqCount: recentDlqCount || 0,
     };
   }
 
@@ -227,7 +235,7 @@ export class DlqService {
       await job.remove();
       this.logger.log(`DLQ entry ${dlqJobId} deleted`);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Failed to delete DLQ entry ${dlqJobId}: ${error.message}`,
       );

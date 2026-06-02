@@ -1,9 +1,16 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+  Inject,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskQueryDto } from './dto/task-query.dto';
 import { TaskSyncPayload } from '../common/types/sync.types';
+import { SYNC_QUEUE_SERVICE } from '../common/constants/injection-tokens';
 
 // SyncQueueService 타입 (선택적 의존성)
 interface ISyncQueueService {
@@ -29,13 +36,17 @@ export class TaskService {
 
   constructor(
     private readonly supabase: SupabaseService,
-    @Optional() syncQueue?: ISyncQueueService,
+    @Optional()
+    @Inject(SYNC_QUEUE_SERVICE)
+    syncQueue?: ISyncQueueService,
   ) {
     this.syncQueueService = syncQueue ?? null;
     if (!this.syncQueueService) {
       this.logger.warn(
         'SyncQueueService not available - sync features disabled',
       );
+    } else {
+      this.logger.log('SyncQueueService connected - sync features enabled');
     }
   }
 

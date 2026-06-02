@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule.forRoot());
 
   // CORS 설정 (개발/프로덕션 환경 모두 지원)
   const allowedOrigins = [
