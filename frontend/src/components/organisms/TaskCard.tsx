@@ -5,9 +5,10 @@
 
 import { forwardRef, memo } from 'react';
 import { clsx } from 'clsx';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Calendar } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 import { PriorityIcon, Tag } from '../atoms';
-import { AvatarGroup, DateDisplay } from '../molecules';
+import { AvatarGroup } from '../molecules';
 import type { Task } from '../../types';
 import type { TAG_COLORS } from '../../types';
 
@@ -86,7 +87,22 @@ export const TaskCard = memo(
               <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-2">
                   <PriorityIcon priority={task.priority} size="sm" />
-                  <DateDisplay date={task.endDate} />
+                  {(task.startDate || task.endDate) && (
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                      <Calendar className="w-3 h-3" />
+                      {task.startDate && task.endDate ? (
+                        <>
+                          {format(parseISO(task.startDate), 'M/d')}
+                          <span className="text-gray-400">~</span>
+                          {format(parseISO(task.endDate), 'M/d')}
+                        </>
+                      ) : task.endDate ? (
+                        format(parseISO(task.endDate), 'M/d')
+                      ) : task.startDate ? (
+                        <>{format(parseISO(task.startDate), 'M/d')}~</>
+                      ) : null}
+                    </span>
+                  )}
                 </div>
 
                 {task.assignees && task.assignees.length > 0 && (

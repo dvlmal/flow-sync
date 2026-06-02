@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FlowSync is an MCP-based Notion-integrated project workflow management system. It combines a React frontend with a NestJS backend, using PostgreSQL (Supabase) as the primary database with Supabase JS Client. The system enables Kanban-style workflow management with bidirectional Notion synchronization via MCP (Model Context Protocol).
+FlowSync is an MCP-based Notion-integrated project workflow management system. It combines a React frontend with a NestJS backend, using PostgreSQL (Supabase) as the primary database with native Supabase REST API. The system enables Kanban-style workflow management with bidirectional Notion synchronization via MCP (Model Context Protocol).
 
 ## Build and Development Commands
 
@@ -62,13 +62,21 @@ Sync Worker → Notion API → FlowSync Tasks DB (Notion)
 
 ```
 Vercel Frontend (/)
-    │ rewrites: /api/* → /_/backend/api/*
+    │ rewrites: /api/* → /api (Serverless Function)
     ▼
-Vercel Backend (/_/backend)
+Vercel Serverless Function (/api/index.ts)
+    │ NestJS + Express
+    ▼
+Supabase REST API (PostgREST)
     │
     ▼
 PostgreSQL (Supabase)
 ```
+
+**Vercel Serverless Function 구조:**
+- `/api/index.ts`: NestJS 앱을 Vercel 네이티브 핸들러로 래핑
+- `includeFiles: "backend/**"`: 백엔드 소스 코드 포함
+- 경로 재구성: Vercel rewrites로 전달된 path 파라미터를 URL로 복원
 
 **Vercel 환경 제한사항:**
 - SyncModule 비활성화 (BullMQ 미지원)
@@ -84,7 +92,7 @@ PostgreSQL (Supabase)
 | WorkflowStatusModule | Workflow Status CRUD, 순서 재정렬 |
 | SyncModule | BullMQ Queue/Worker, DLQ, Notion 동기화 **(로컬 전용, Vercel 제외)** |
 | NotionModule | Notion API integration (CRUD, pagination) |
-| SupabaseModule | Supabase JS Client, PostgreSQL 연결 |
+| SupabaseModule | Supabase REST API (native fetch), PostgreSQL 연결 |
 | ConfigModule | 환경 변수 검증 및 관리 |
 
 **Data Flow:**
@@ -135,10 +143,10 @@ Five main tables in Supabase PostgreSQL:
 |-------|------------|
 | Frontend | React 19, Vite, TanStack Query, React Router, Tailwind CSS, Axios |
 | UI Components | dnd-kit (Drag & Drop), FullCalendar, Lucide Icons |
-| Backend | NestJS 11, Supabase JS Client, TypeScript, @notionhq/client 5.x |
+| Backend | NestJS 11, Supabase REST API (native fetch), TypeScript, @notionhq/client 5.x |
 | Database | PostgreSQL (Supabase), Notion Database |
 | Sync | BullMQ, Upstash Redis, Last Write Wins 충돌 해결 **(로컬 전용)** |
-| Deployment | Vercel (experimentalServices), Supabase |
+| Deployment | Vercel Serverless Functions, Supabase |
 
 ### Frontend Structure (Atomic Design)
 
@@ -178,11 +186,12 @@ frontend/src/
 - [x] Atomic Design 컴포넌트 구조
 
 ### Completed (Vercel 배포)
-- [x] Vercel experimentalServices 설정
-- [x] API rewrites 구성 (/api/* → /_/backend/api/*)
+- [x] Vercel Serverless Functions 설정 (`/api/index.ts`)
+- [x] API rewrites 구성 (`/api/:path*` → `/api`)
 - [x] SyncModule 조건부 빌드 (tsconfig.build.json)
 - [x] BullMQ optionalDependencies로 이동
-- [x] Supabase JS Client로 전환 (Prisma 제거, Vercel 서버리스 호환)
+- [x] Supabase REST API로 전환 (Prisma 제거, native fetch 사용)
+- [x] Vercel 네이티브 핸들러 구현 (@vercel/node 타입 사용)
 
 ### Next (4단계: 동기화 고도화)
 - [ ] Notion → App Polling Scheduler

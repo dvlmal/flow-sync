@@ -140,7 +140,7 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <LoadingSpinner size="lg" label="Loading tasks..." />
+        <LoadingSpinner size="lg" label="작업 불러오는 중..." />
       </div>
     );
   }
@@ -149,7 +149,7 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
   const columnsToShow = [
     ...statuses.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     ...(tasksByStatus['no-status']?.length > 0
-      ? [{ id: 'no-status', name: 'No Status', projectId: projectId, sortOrder: 999 }]
+      ? [{ id: 'no-status', name: '상태 없음', projectId: projectId, sortOrder: 999 }]
       : []),
   ];
 
@@ -166,8 +166,8 @@ export function KanbanBoard({ tasks, statuses, projectId, isLoading }: KanbanBoa
           {columnsToShow.length === 0 ? (
             <div className="flex-1">
               <EmptyState
-                title="No workflow statuses"
-                description="Create workflow statuses to organize your tasks."
+                title="워크플로우 상태 없음"
+                description="작업을 정리하려면 워크플로우 상태를 생성하세요."
               />
             </div>
           ) : (

@@ -87,6 +87,24 @@ export class WorkflowStatusService {
   }
 
   /**
+   * 전체 WorkflowStatus 목록 조회
+   */
+  async findAll() {
+    const { data: statuses, error } = await this.supabase
+      .from('workflow_status')
+      .select('*')
+      .order('project_id', { ascending: true })
+      .order('sort_ordr', { ascending: true });
+
+    if (error) {
+      this.logger.error(`Failed to fetch all workflow statuses: ${error.message}`);
+      throw error;
+    }
+
+    return (statuses ?? []).map((status) => this.formatStatusResponse(status, 0));
+  }
+
+  /**
    * 프로젝트별 WorkflowStatus 목록 조회
    */
   async findByProject(projectId: string) {

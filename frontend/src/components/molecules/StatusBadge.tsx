@@ -5,6 +5,7 @@
 
 import { clsx } from 'clsx';
 import { StatusDot } from '../atoms';
+import { STATUS_LABELS } from '../../types';
 
 interface StatusBadgeProps {
   status: string;
@@ -12,6 +13,8 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const label = STATUS_LABELS[status] ?? status;
+
   return (
     <span
       className={clsx(
@@ -21,7 +24,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
       )}
     >
       <StatusDot status={status} size="sm" />
-      {status}
+      {label}
     </span>
   );
 }

@@ -20,7 +20,7 @@ import { TaskModal } from './TaskModal';
 import { CreateTaskModal } from './CreateTaskModal';
 import { useUpdateTask } from '../../hooks';
 import type { Task, WorkflowStatus, TaskPriority } from '../../types';
-import { PRIORITY_CONFIG } from '../../types';
+import { PRIORITY_CONFIG, STATUS_LABELS } from '../../types';
 
 interface ListViewProps {
   tasks: Task[];
@@ -159,7 +159,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <LoadingSpinner size="lg" label="Loading tasks..." />
+        <LoadingSpinner size="lg" label="작업 불러오는 중..." />
       </div>
     );
   }
@@ -175,7 +175,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search tasks..."
+                placeholder="작업 검색..."
                 value={filters.search}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                 className="pl-9 pr-3 py-1.5 w-64 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -193,7 +193,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
               )}
             >
               <Filter className="w-4 h-4" />
-              Filter
+              필터
               {(filters.status || filters.priority) && (
                 <span className="w-2 h-2 rounded-full bg-blue-500" />
               )}
@@ -202,7 +202,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
 
           <Button size="sm" onClick={() => setCreateModalOpen(true)}>
             <Plus className="w-4 h-4" />
-            New Task
+            새 작업
           </Button>
         </div>
 
@@ -210,23 +210,23 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
         {showFilters && (
           <div className="flex items-center gap-4 px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Status:</span>
+              <span className="text-sm text-gray-500">상태:</span>
               <select
                 value={filters.status ?? ''}
                 onChange={(e) => setFilters({ ...filters, status: e.target.value || null })}
                 className="px-2 py-1 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
               >
-                <option value="">All</option>
+                <option value="">전체</option>
                 {statuses.map((status) => (
                   <option key={status.id} value={status.id}>
-                    {status.name}
+                    {STATUS_LABELS[status.name] ?? status.name}
                   </option>
                 ))}
               </select>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Priority:</span>
+              <span className="text-sm text-gray-500">우선순위:</span>
               <select
                 value={filters.priority ?? ''}
                 onChange={(e) =>
@@ -234,7 +234,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                 }
                 className="px-2 py-1 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
               >
-                <option value="">All</option>
+                <option value="">전체</option>
                 {Object.entries(PRIORITY_CONFIG).map(([value, config]) => (
                   <option key={value} value={value}>
                     {config.label}
@@ -248,7 +248,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                 onClick={() => setFilters({ ...filters, status: null, priority: null })}
                 className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               >
-                Clear filters
+                필터 초기화
               </button>
             )}
           </div>
@@ -264,7 +264,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                     onClick={() => handleSort('title')}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-gray-700 dark:hover:text-gray-300"
                   >
-                    Title
+                    제목
                     <SortIcon field="title" />
                   </button>
                 </th>
@@ -273,7 +273,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                     onClick={() => handleSort('status')}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-gray-700 dark:hover:text-gray-300"
                   >
-                    Status
+                    상태
                     <SortIcon field="status" />
                   </button>
                 </th>
@@ -282,22 +282,27 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                     onClick={() => handleSort('priority')}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-gray-700 dark:hover:text-gray-300"
                   >
-                    Priority
+                    우선순위
                     <SortIcon field="priority" />
                   </button>
                 </th>
-                <th className="text-left px-4 py-3 w-32">
+                <th className="text-left px-4 py-3 w-28">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    시작일
+                  </span>
+                </th>
+                <th className="text-left px-4 py-3 w-28">
                   <button
                     onClick={() => handleSort('endDate')}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-gray-700 dark:hover:text-gray-300"
                   >
-                    Due Date
+                    마감일
                     <SortIcon field="endDate" />
                   </button>
                 </th>
-                <th className="text-left px-4 py-3 w-32">
+                <th className="text-left px-4 py-3 w-28">
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Assignees
+                    담당자
                   </span>
                 </th>
               </tr>
@@ -305,15 +310,15 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
             <tbody>
               {filteredAndSortedTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8">
+                  <td colSpan={6} className="px-4 py-8">
                     <EmptyState
-                      title="No tasks found"
+                      title="작업을 찾을 수 없습니다"
                       description={
                         filters.search || filters.status || filters.priority
-                          ? 'Try adjusting your filters.'
-                          : 'Create your first task to get started.'
+                          ? '필터 조건을 변경해보세요.'
+                          : '첫 번째 작업을 생성해보세요.'
                       }
-                      actionLabel={!filters.search && !filters.status && !filters.priority ? 'New Task' : undefined}
+                      actionLabel={!filters.search && !filters.status && !filters.priority ? '새 작업' : undefined}
                       onAction={() => setCreateModalOpen(true)}
                     />
                   </td>
@@ -343,7 +348,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                               {status ? (
                                 <StatusBadge status={status.name} />
                               ) : (
-                                <span className="text-sm text-gray-400">No status</span>
+                                <span className="text-sm text-gray-400">상태 없음</span>
                               )}
                             </div>
                           }
@@ -367,7 +372,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                             <div className="inline-block">
                               <PriorityIcon priority={task.priority} showLabel />
                               {!task.priority && (
-                                <span className="text-sm text-gray-400">None</span>
+                                <span className="text-sm text-gray-400">없음</span>
                               )}
                             </div>
                           }
@@ -376,7 +381,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                             selected={!task.priority}
                             onClick={() => handleInlineEdit(task.id, 'priority', '')}
                           >
-                            <span className="text-gray-400">None</span>
+                            <span className="text-gray-400">없음</span>
                           </DropdownItem>
                           {Object.entries(PRIORITY_CONFIG).map(([value]) => (
                             <DropdownItem
@@ -390,11 +395,20 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
                         </Dropdown>
                       </td>
 
+                      {/* Start Date */}
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {task.startDate
+                            ? format(parseISO(task.startDate), 'M/d')
+                            : '-'}
+                        </span>
+                      </td>
+
                       {/* Due Date */}
                       <td className="px-4 py-3">
                         <span className="text-sm text-gray-600 dark:text-gray-400">
                           {task.endDate
-                            ? format(parseISO(task.endDate), 'MMM d, yyyy')
+                            ? format(parseISO(task.endDate), 'M/d')
                             : '-'}
                         </span>
                       </td>
@@ -417,7 +431,7 @@ export function ListView({ tasks, statuses, projectId, isLoading }: ListViewProp
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500">
-          {filteredAndSortedTasks.length} of {tasks.length} tasks
+          전체 {tasks.length}개 중 {filteredAndSortedTasks.length}개
         </div>
       </div>
 

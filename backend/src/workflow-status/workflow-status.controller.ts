@@ -33,6 +33,15 @@ export class WorkflowStatusController {
   }
 
   /**
+   * 전체 WorkflowStatus 목록 조회
+   * GET /api/workflow-statuses
+   */
+  @Get()
+  async findAll() {
+    return this.workflowStatusService.findAll();
+  }
+
+  /**
    * 프로젝트별 WorkflowStatus 목록 조회
    * GET /api/workflow-statuses/project/:projectId
    */

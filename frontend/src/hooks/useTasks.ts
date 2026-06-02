@@ -121,7 +121,7 @@ export function useUpdateTaskStatus() {
 
   return useMutation({
     mutationFn: ({ id, statusId }: { id: string; statusId: string | null }) =>
-      updateTask(id, { statusId: statusId || undefined }),
+      updateTask(id, { statusId }),
     onMutate: async ({ id, statusId }) => {
       await queryClient.cancelQueries({ queryKey: taskKeys.lists() });
 

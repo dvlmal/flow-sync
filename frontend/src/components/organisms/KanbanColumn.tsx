@@ -13,6 +13,7 @@ import { Plus, MoreHorizontal } from 'lucide-react';
 import { SortableTaskCard } from './SortableTaskCard';
 import { StatusDot } from '../atoms';
 import type { Task, WorkflowStatus } from '../../types';
+import { STATUS_LABELS } from '../../types';
 
 interface KanbanColumnProps {
   status: WorkflowStatus;
@@ -27,6 +28,7 @@ export function KanbanColumn({ status, tasks, onTaskClick, onAddTask }: KanbanCo
   });
 
   const taskIds = tasks.map((t) => t.id);
+  const statusLabel = STATUS_LABELS[status.name] ?? status.name;
 
   return (
     <div
@@ -40,7 +42,7 @@ export function KanbanColumn({ status, tasks, onTaskClick, onAddTask }: KanbanCo
         <div className="flex items-center gap-2">
           <StatusDot status={status.name} />
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-            {status.name}
+            {statusLabel}
           </h3>
           <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">
             {tasks.length}
@@ -50,13 +52,13 @@ export function KanbanColumn({ status, tasks, onTaskClick, onAddTask }: KanbanCo
           <button
             onClick={onAddTask}
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-            aria-label="Add task"
+            aria-label="작업 추가"
           >
             <Plus className="w-4 h-4" />
           </button>
           <button
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-            aria-label="More options"
+            aria-label="더보기"
           >
             <MoreHorizontal className="w-4 h-4" />
           </button>
@@ -92,7 +94,7 @@ export function KanbanColumn({ status, tasks, onTaskClick, onAddTask }: KanbanCo
             )}
           >
             <span className="text-xs text-gray-400 dark:text-gray-500">
-              Drop tasks here
+              여기에 작업을 놓으세요
             </span>
           </div>
         )}
@@ -109,7 +111,7 @@ export function KanbanColumn({ status, tasks, onTaskClick, onAddTask }: KanbanCo
         )}
       >
         <Plus className="w-4 h-4" />
-        Add task
+        작업 추가
       </button>
     </div>
   );

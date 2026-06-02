@@ -16,8 +16,8 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({
-  title = 'No items',
-  description = 'Get started by creating a new item.',
+  title = '항목이 없습니다',
+  description = '새 항목을 만들어 시작하세요.',
   actionLabel,
   onAction,
   className,

@@ -312,7 +312,7 @@ export function PrioritySelector({
         ${className}
       `}
       role="radiogroup"
-      aria-label="Priority selector"
+      aria-label="우선순위 선택"
     >
       {priorityOrder.map((priority) => (
         <button

@@ -12,7 +12,7 @@ import { Button, Input, PriorityIcon } from '../atoms';
 import { StatusBadge, AvatarGroup } from '../molecules';
 import { useUpdateTask, useDeleteTask } from '../../hooks';
 import type { Task, TaskPriority, WorkflowStatus, UpdateTaskDto } from '../../types';
-import { PRIORITY_CONFIG } from '../../types';
+import { PRIORITY_CONFIG, STATUS_LABELS } from '../../types';
 
 interface TaskModalProps {
   task: Task | null;
@@ -111,7 +111,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
           <div className="flex items-center gap-3">
             {currentStatus && <StatusBadge status={currentStatus.name} />}
             <span className="text-xs text-gray-500">
-              Updated {task.updatedAt ? format(parseISO(task.updatedAt), 'MMM d, yyyy') : 'Unknown'}
+              수정됨 {task.updatedAt ? format(parseISO(task.updatedAt), 'yyyy년 M월 d일') : '알 수 없음'}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -122,25 +122,25 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
                   size="sm"
                   onClick={() => setIsEditing(false)}
                 >
-                  Cancel
+                  취소
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleSave}
                   loading={updateTask.isPending}
                 >
-                  Save
+                  저장
                 </Button>
               </>
             ) : (
               <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
-                Edit
+                수정
               </Button>
             )}
             <button
               onClick={onClose}
               className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Close"
+              aria-label="닫기"
             >
               <X className="w-5 h-5" />
             </button>
@@ -156,7 +156,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
                 value={editedTask.title ?? ''}
                 onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
                 className="text-xl font-semibold"
-                placeholder="Task title"
+                placeholder="작업 제목"
                 autoFocus
               />
             ) : (
@@ -175,7 +175,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
             <div className="flex items-center gap-4">
               <div className="w-24 flex items-center gap-2 text-sm text-gray-500">
                 <TagIcon className="w-4 h-4" />
-                Status
+                상태
               </div>
               {isEditing ? (
                 <select
@@ -183,16 +183,16 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
                   onChange={(e) => setEditedTask({ ...editedTask, statusId: e.target.value || undefined })}
                   className="flex-1 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 >
-                  <option value="">No status</option>
+                  <option value="">상태 없음</option>
                   {statuses.map((status) => (
                     <option key={status.id} value={status.id}>
-                      {status.name}
+                      {STATUS_LABELS[status.name] ?? status.name}
                     </option>
                   ))}
                 </select>
               ) : (
                 <span className="text-sm text-gray-900 dark:text-gray-100">
-                  {currentStatus?.name ?? 'No status'}
+                  {currentStatus ? (STATUS_LABELS[currentStatus.name] ?? currentStatus.name) : '상태 없음'}
                 </span>
               )}
             </div>
@@ -201,7 +201,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
             <div className="flex items-center gap-4">
               <div className="w-24 flex items-center gap-2 text-sm text-gray-500">
                 <Flag className="w-4 h-4" />
-                Priority
+                우선순위
               </div>
               {isEditing ? (
                 <select
@@ -214,7 +214,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
                   }
                   className="flex-1 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 >
-                  <option value="">No priority</option>
+                  <option value="">우선순위 없음</option>
                   {Object.entries(PRIORITY_CONFIG).map(([value, config]) => (
                     <option key={value} value={value}>
                       {config.label}
@@ -224,7 +224,32 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
               ) : (
                 <span className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
                   <PriorityIcon priority={task.priority} showLabel />
-                  {!task.priority && 'No priority'}
+                  {!task.priority && '우선순위 없음'}
+                </span>
+              )}
+            </div>
+
+            {/* Start Date */}
+            <div className="flex items-center gap-4">
+              <div className="w-24 flex items-center gap-2 text-sm text-gray-500">
+                <Calendar className="w-4 h-4" />
+                시작일
+              </div>
+              {isEditing ? (
+                <input
+                  type="date"
+                  value={editedTask.startDate ? format(parseISO(editedTask.startDate), 'yyyy-MM-dd') : ''}
+                  onChange={(e) =>
+                    setEditedTask({
+                      ...editedTask,
+                      startDate: e.target.value ? new Date(e.target.value).toISOString() : undefined,
+                    })
+                  }
+                  className="flex-1 px-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                />
+              ) : (
+                <span className="text-sm text-gray-900 dark:text-gray-100">
+                  {task.startDate ? format(parseISO(task.startDate), 'yyyy년 M월 d일') : '시작일 없음'}
                 </span>
               )}
             </div>
@@ -233,7 +258,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
             <div className="flex items-center gap-4">
               <div className="w-24 flex items-center gap-2 text-sm text-gray-500">
                 <Calendar className="w-4 h-4" />
-                Due Date
+                마감일
               </div>
               {isEditing ? (
                 <input
@@ -249,7 +274,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
                 />
               ) : (
                 <span className="text-sm text-gray-900 dark:text-gray-100">
-                  {task.endDate ? format(parseISO(task.endDate), 'MMM d, yyyy') : 'No due date'}
+                  {task.endDate ? format(parseISO(task.endDate), 'yyyy년 M월 d일') : '마감일 없음'}
                 </span>
               )}
             </div>
@@ -258,13 +283,13 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
             <div className="flex items-center gap-4">
               <div className="w-24 flex items-center gap-2 text-sm text-gray-500">
                 <User className="w-4 h-4" />
-                Assignees
+                담당자
               </div>
               <span className="text-sm text-gray-900 dark:text-gray-100">
                 {task.assignees && task.assignees.length > 0 ? (
                   <AvatarGroup assignees={task.assignees} max={5} size="md" />
                 ) : (
-                  'No assignees'
+                  '담당자 없음'
                 )}
               </span>
             </div>
@@ -274,7 +299,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
           <div className="mb-6">
             <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
               <AlignLeft className="w-4 h-4" />
-              Description
+              설명
             </div>
             {isEditing ? (
               <textarea
@@ -282,11 +307,11 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
                 onChange={(e) => setEditedTask({ ...editedTask, content: e.target.value })}
                 rows={4}
                 className="w-full px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 resize-none"
-                placeholder="Add description..."
+                placeholder="설명 추가..."
               />
             ) : (
               <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                {task.content || 'No description'}
+                {task.content || '설명 없음'}
               </p>
             )}
           </div>
@@ -296,21 +321,21 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
               {showDeleteConfirm ? (
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-red-600">Delete this task?</span>
+                  <span className="text-sm text-red-600">이 작업을 삭제하시겠습니까?</span>
                   <Button
                     variant="danger"
                     size="sm"
                     onClick={handleDelete}
                     loading={deleteTask.isPending}
                   >
-                    Delete
+                    삭제
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowDeleteConfirm(false)}
                   >
-                    Cancel
+                    취소
                   </Button>
                 </div>
               ) : (
@@ -321,7 +346,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
                   className="text-red-600 hover:text-red-700 hover:bg-red-50"
                 >
                   <Trash2 className="w-4 h-4" />
-                  Delete Task
+                  작업 삭제
                 </Button>
               )}
             </div>

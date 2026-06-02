@@ -6,6 +6,14 @@ import apiClient from './client';
 import type { WorkflowStatus } from '../types';
 
 /**
+ * Fetch all workflow statuses
+ */
+export async function fetchAllWorkflowStatuses(): Promise<WorkflowStatus[]> {
+  const { data } = await apiClient.get<WorkflowStatus[]>('/workflow-statuses');
+  return data;
+}
+
+/**
  * Fetch workflow statuses for a project
  */
 export async function fetchWorkflowStatuses(projectId: string): Promise<WorkflowStatus[]> {

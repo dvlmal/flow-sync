@@ -28,6 +28,7 @@ export interface Task {
   id: string;
   projectId?: string | null;
   statusId?: string | null;
+  statusName?: string | null;
   notionPageId?: string | null;
   title: string;
   content?: string | null;
@@ -100,10 +101,10 @@ export interface CreateTaskDto {
 
 export interface UpdateTaskDto {
   title?: string;
-  statusId?: string;
+  statusId?: string | null;
   content?: string;
-  startDate?: string;
-  endDate?: string;
+  startDate?: string | null;
+  endDate?: string | null;
   priority?: TaskPriority;
   assignees?: Assignee[];
   tags?: string[];
@@ -132,10 +133,10 @@ export const TAG_COLORS: Record<string, TagColor> = {
 };
 
 export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; icon: string }> = {
-  Low: { label: 'Low', color: 'text-gray-400', icon: 'minus' },
-  Medium: { label: 'Medium', color: 'text-yellow-500', icon: 'equal' },
-  High: { label: 'High', color: 'text-orange-500', icon: 'chevron-up' },
-  Urgent: { label: 'Urgent', color: 'text-red-500', icon: 'chevrons-up' },
+  Low: { label: '낮음', color: 'text-gray-400', icon: 'minus' },
+  Medium: { label: '보통', color: 'text-yellow-500', icon: 'equal' },
+  High: { label: '높음', color: 'text-orange-500', icon: 'chevron-up' },
+  Urgent: { label: '긴급', color: 'text-red-500', icon: 'chevrons-up' },
 };
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -144,4 +145,12 @@ export const STATUS_COLORS: Record<string, string> = {
   'In Progress': 'bg-blue-500',
   'Done': 'bg-green-500',
   'Blocked': 'bg-red-500',
+};
+
+export const STATUS_LABELS: Record<string, string> = {
+  'Not Started': '시작 전',
+  'To Do': '할 일',
+  'In Progress': '진행 중',
+  'Done': '완료',
+  'Blocked': '보류',
 };

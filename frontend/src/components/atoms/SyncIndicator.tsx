@@ -29,7 +29,7 @@ export function SyncIndicator({ status, onRetry, className }: SyncIndicatorProps
           type="button"
           onClick={onRetry}
           className="inline-flex items-center gap-1 text-red-500 hover:text-red-600 transition-colors"
-          title="Retry sync"
+          title="동기화 재시도"
         >
           <AlertCircle className="w-3.5 h-3.5" />
           {onRetry && <RefreshCw className="w-3 h-3" />}

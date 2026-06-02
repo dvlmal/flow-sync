@@ -14,9 +14,9 @@ interface ViewSwitcherProps {
 }
 
 const views: { mode: ViewMode; label: string; icon: typeof LayoutGrid }[] = [
-  { mode: 'kanban', label: 'Kanban', icon: LayoutGrid },
-  { mode: 'calendar', label: 'Calendar', icon: Calendar },
-  { mode: 'list', label: 'List', icon: List },
+  { mode: 'kanban', label: '칸반', icon: LayoutGrid },
+  { mode: 'calendar', label: '캘린더', icon: Calendar },
+  { mode: 'list', label: '목록', icon: List },
 ];
 
 export function ViewSwitcher({ value, onChange, className }: ViewSwitcherProps) {

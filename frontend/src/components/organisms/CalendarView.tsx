@@ -9,13 +9,72 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
-import type { EventInput, EventClickArg, DateSelectArg, EventDropArg } from '@fullcalendar/core';
+import koLocale from '@fullcalendar/core/locales/ko';
+import type { EventInput, EventClickArg, DateSelectArg, EventDropArg, EventResizeDoneArg, DayCellContentArg } from '@fullcalendar/core';
 import { TaskModal } from './TaskModal';
 import { CreateTaskModal } from './CreateTaskModal';
 import { LoadingSpinner } from '../molecules';
 import { useUpdateTask } from '../../hooks';
 import type { Task, WorkflowStatus } from '../../types';
 import { STATUS_COLORS } from '../../types';
+
+// Korean public holidays (fixed dates + lunar calendar holidays for 2024-2026)
+const KOREAN_HOLIDAYS: Record<string, string> = {
+  // Fixed holidays (every year)
+  // 신정
+  '01-01': '신정',
+  // 삼일절
+  '03-01': '삼일절',
+  // 어린이날
+  '05-05': '어린이날',
+  // 현충일
+  '06-06': '현충일',
+  // 광복절
+  '08-15': '광복절',
+  // 개천절
+  '10-03': '개천절',
+  // 한글날
+  '10-09': '한글날',
+  // 크리스마스
+  '12-25': '크리스마스',
+
+  // 2024 Lunar holidays
+  '2024-02-09': '설날 연휴',
+  '2024-02-10': '설날',
+  '2024-02-11': '설날 연휴',
+  '2024-02-12': '대체공휴일',
+  '2024-05-15': '부처님 오신 날',
+  '2024-09-16': '추석 연휴',
+  '2024-09-17': '추석',
+  '2024-09-18': '추석 연휴',
+
+  // 2025 Lunar holidays
+  '2025-01-28': '설날 연휴',
+  '2025-01-29': '설날',
+  '2025-01-30': '설날 연휴',
+  '2025-05-05': '부처님 오신 날',
+  '2025-10-05': '추석 연휴',
+  '2025-10-06': '추석',
+  '2025-10-07': '추석 연휴',
+  '2025-10-08': '대체공휴일',
+
+  // 2026 Lunar holidays
+  '2026-02-16': '설날 연휴',
+  '2026-02-17': '설날',
+  '2026-02-18': '설날 연휴',
+  '2026-05-24': '부처님 오신 날',
+  '2026-09-24': '추석 연휴',
+  '2026-09-25': '추석',
+  '2026-09-26': '추석 연휴',
+};
+
+// Check if a date is a Korean holiday
+function isKoreanHoliday(date: Date): boolean {
+  const mmdd = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const fullDate = `${date.getFullYear()}-${mmdd}`;
+
+  return KOREAN_HOLIDAYS[mmdd] !== undefined || KOREAN_HOLIDAYS[fullDate] !== undefined;
+}
 
 interface CalendarViewProps {
   tasks: Task[];
@@ -63,6 +122,7 @@ function taskToEvent(task: Task, statuses: WorkflowStatus[]): EventInput | null 
 export function CalendarView({ tasks, statuses, projectId, isLoading }: CalendarViewProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [selectedDateRange, setSelectedDateRange] = useState<{ start: string; end: string } | null>(null);
 
   const updateTask = useUpdateTask();
 
@@ -86,22 +146,49 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
   }, []);
 
   // Handle date selection for creating new task
-  const handleDateSelect = useCallback((_info: DateSelectArg) => {
+  const handleDateSelect = useCallback((info: DateSelectArg) => {
+    // Store selected date range for new task
+    setSelectedDateRange({
+      start: info.start.toISOString(),
+      end: info.end.toISOString(),
+    });
     setCreateModalOpen(true);
   }, []);
 
-  // Handle event drag (change due date)
+  // Handle event drag (change dates)
   const handleEventDrop = useCallback(
     (info: EventDropArg) => {
       const task = info.event.extendedProps.task as Task;
-      const newEndDate = info.event.end ?? info.event.start;
+      const startDate = info.event.start;
+      // For allDay events, end might be null (same day) - use start date in that case
+      const endDate = info.event.end ?? info.event.start;
 
-      if (newEndDate) {
+      if (startDate && endDate) {
         updateTask.mutate({
           id: task.id,
           dto: {
-            endDate: newEndDate.toISOString(),
-            startDate: info.event.start?.toISOString(),
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+          },
+        });
+      }
+    },
+    [updateTask]
+  );
+
+  // Handle event resize (change duration)
+  const handleEventResize = useCallback(
+    (info: EventResizeDoneArg) => {
+      const task = info.event.extendedProps.task as Task;
+      const startDate = info.event.start;
+      const endDate = info.event.end ?? info.event.start;
+
+      if (startDate && endDate) {
+        updateTask.mutate({
+          id: task.id,
+          dto: {
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
           },
         });
       }
@@ -112,7 +199,7 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <LoadingSpinner size="lg" label="Loading calendar..." />
+        <LoadingSpinner size="lg" label="캘린더 불러오는 중..." />
       </div>
     );
   }
@@ -122,6 +209,7 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
       <div className="bg-white dark:bg-gray-900 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
+          locale={koLocale}
           initialView="dayGridMonth"
           headerToolbar={{
             left: 'prev,next today',
@@ -136,22 +224,24 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
           eventClick={handleEventClick}
           select={handleDateSelect}
           eventDrop={handleEventDrop}
+          eventResize={handleEventResize}
+          eventResizableFromStart={true}
           height="auto"
           eventContent={(eventInfo) => (
             <div className="px-1.5 py-0.5 text-xs truncate">
               <span className="font-medium">{eventInfo.event.title}</span>
             </div>
           )}
-          // Notion-style customization
-          buttonText={{
-            today: 'Today',
-            month: 'Month',
-            week: 'Week',
-            day: 'Day',
-            list: 'List',
+          // Show day number only (without '일' suffix)
+          dayCellContent={(arg: DayCellContentArg) => arg.dayNumberText.replace('일', '')}
+          // Styling hooks - add holiday class for Korean holidays
+          dayCellClassNames={(arg) => {
+            const classes = ['hover:bg-gray-50', 'dark:hover:bg-gray-800', 'transition-colors'];
+            if (isKoreanHoliday(arg.date)) {
+              classes.push('fc-day-holiday');
+            }
+            return classes;
           }}
-          // Styling hooks
-          dayCellClassNames="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
           eventClassNames="cursor-pointer rounded shadow-sm hover:shadow-md transition-shadow"
         />
       </div>
@@ -208,6 +298,30 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
           color: rgb(107 114 128);
         }
 
+        /* Sunday styling - red color */
+        .fc .fc-day-sun .fc-col-header-cell-cushion {
+          color: rgb(239 68 68);
+        }
+
+        .fc .fc-day-sun .fc-daygrid-day-number {
+          color: rgb(239 68 68);
+        }
+
+        .fc .fc-daygrid-day.fc-day-sun.fc-day-today .fc-daygrid-day-number {
+          background-color: rgb(239 68 68);
+          color: white;
+        }
+
+        /* Korean holiday styling - red color */
+        .fc .fc-day-holiday .fc-daygrid-day-number {
+          color: rgb(239 68 68);
+        }
+
+        .fc .fc-daygrid-day.fc-day-holiday.fc-day-today .fc-daygrid-day-number {
+          background-color: rgb(239 68 68);
+          color: white;
+        }
+
         .fc .fc-daygrid-day-number {
           padding: 0.5rem;
           font-size: 0.875rem;
@@ -257,9 +371,12 @@ export function CalendarView({ tasks, statuses, projectId, isLoading }: Calendar
       <CreateTaskModal
         projectId={projectId}
         statuses={statuses}
+        defaultStartDate={selectedDateRange?.start}
+        defaultEndDate={selectedDateRange?.end}
         isOpen={createModalOpen}
         onClose={() => {
           setCreateModalOpen(false);
+          setSelectedDateRange(null);
         }}
       />
     </>

@@ -3,14 +3,25 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchWorkflowStatuses, reorderWorkflowStatuses } from '../api/workflow-statuses';
+import { fetchAllWorkflowStatuses, fetchWorkflowStatuses, reorderWorkflowStatuses } from '../api/workflow-statuses';
 import type { WorkflowStatus } from '../types';
 
 // Query keys
 export const workflowStatusKeys = {
   all: ['workflowStatuses'] as const,
+  list: () => [...workflowStatusKeys.all, 'list'] as const,
   byProject: (projectId: string) => [...workflowStatusKeys.all, 'project', projectId] as const,
 };
+
+/**
+ * Hook to fetch all workflow statuses
+ */
+export function useAllWorkflowStatuses() {
+  return useQuery({
+    queryKey: workflowStatusKeys.list(),
+    queryFn: fetchAllWorkflowStatuses,
+  });
+}
 
 /**
  * Hook to fetch workflow statuses for a project

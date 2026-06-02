@@ -34,8 +34,8 @@ export function DateDisplay({
   const formattedDate = format(parsedDate, formatString, { locale: ko });
 
   let displayText = formattedDate;
-  if (isDueToday) displayText = 'Today';
-  else if (isDueTomorrow) displayText = 'Tomorrow';
+  if (isDueToday) displayText = '오늘';
+  else if (isDueTomorrow) displayText = '내일';
 
   return (
     <span

@@ -84,7 +84,7 @@ export function TaskBoard() {
             <Dropdown
               trigger={
                 <button className="inline-flex items-center gap-2 px-3 py-1.5 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors">
-                  {selectedProject?.title ?? 'Select Project'}
+                  {selectedProject?.title ?? '프로젝트 선택'}
                   <ChevronDown className="w-4 h-4 text-gray-500" />
                 </button>
               }
@@ -103,7 +103,7 @@ export function TaskBoard() {
 
           {/* Task Count */}
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            {tasks.length} tasks
+            {tasks.length}개의 작업
           </span>
         </div>
 
@@ -135,14 +135,14 @@ export function TaskBoard() {
         {!selectedProjectId ? (
           <div className="flex items-center justify-center h-96">
             {projectsLoading ? (
-              <LoadingSpinner size="lg" label="Loading projects..." />
+              <LoadingSpinner size="lg" label="프로젝트 불러오는 중..." />
             ) : (
               <div className="text-center">
                 <p className="text-gray-500 dark:text-gray-400 mb-2">
-                  No project selected
+                  선택된 프로젝트가 없습니다
                 </p>
                 <p className="text-sm text-gray-400 dark:text-gray-500">
-                  Please select a project to view tasks
+                  작업을 보려면 프로젝트를 선택해주세요
                 </p>
               </div>
             )}
