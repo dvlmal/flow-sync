@@ -42,13 +42,17 @@ export class SupabaseService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    // 연결 테스트
-    const result = await this.from('project').select('id').limit(1);
-    if (result.error) {
-      this.logger.error('Failed to connect to Supabase:', result.error.message);
-      throw new Error(result.error.message);
+    // 연결 테스트 (실패해도 앱 시작은 허용)
+    try {
+      const result = await this.from('project').select('id').limit(1);
+      if (result.error) {
+        this.logger.warn('Supabase connection test failed:', result.error.message);
+      } else {
+        this.logger.log('Successfully connected to Supabase');
+      }
+    } catch (error: any) {
+      this.logger.warn('Supabase connection test error:', error.message);
     }
-    this.logger.log('Successfully connected to Supabase');
   }
 
   /**
