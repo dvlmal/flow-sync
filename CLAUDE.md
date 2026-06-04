@@ -78,9 +78,11 @@ PostgreSQL (Supabase)
 - `includeFiles: "backend/**"`: 백엔드 소스 코드 포함
 - 경로 재구성: Vercel rewrites로 전달된 path 파라미터를 URL로 복원
 
-**Vercel 환경 제한사항:**
+**Vercel 환경 동기화:**
 - SyncModule 비활성화 (BullMQ 미지원)
-- Notion 동기화는 별도 서버에서 실행 필요
+- ServerlessSyncModule 활성화 (수동 동기화 지원)
+- `/api/sync/manual` 엔드포인트로 수동 동기화 가능
+- 큐 기반 자동 동기화는 별도 서버에서 실행 필요
 
 ### Backend Modules
 
@@ -91,6 +93,7 @@ PostgreSQL (Supabase)
 | ProjectModule | Project CRUD API |
 | WorkflowStatusModule | Workflow Status CRUD, 순서 재정렬 |
 | SyncModule | BullMQ Queue/Worker, DLQ, Notion 동기화 **(로컬 전용, Vercel 제외)** |
+| ServerlessSyncModule | 수동 동기화 (Vercel 호환, BullMQ 없음) |
 | NotionModule | Notion API integration (CRUD, pagination) |
 | SupabaseModule | Supabase REST API (native fetch), PostgreSQL 연결 |
 | ConfigModule | 환경 변수 검증 및 관리 |
@@ -156,12 +159,13 @@ Five main tables in Supabase PostgreSQL:
 ```
 frontend/src/
 ├── components/
-│   ├── atoms/       # Button, Input, Tag, Avatar, StatusDot, PriorityIcon
-│   ├── molecules/   # Dropdown, ViewSwitcher, LoadingSpinner, AvatarGroup, StatusBadge
+│   ├── atoms/       # Button, Input, Tag, Avatar, StatusDot, PriorityIcon, ConnectionStatus
+│   ├── molecules/   # Dropdown, ViewSwitcher, LoadingSpinner, AvatarGroup, StatusBadge,
+│   │                # SettingsCard, SyncStatusFeedback, InfoBanner, NavigationLink, AssigneeEditor
 │   └── organisms/   # KanbanBoard, CalendarView, ListView, TaskCard, TaskModal
 ├── pages/           # Dashboard, TaskBoard, ProjectManagement, Settings, SyncLogs
 ├── hooks/           # useTasks, useProjects, useWorkflowStatuses (CRUD 지원)
-├── api/             # API 클라이언트 (tasks, projects, workflow-statuses)
+├── api/             # API 클라이언트 (tasks, projects, workflow-statuses, sync)
 └── types/           # TypeScript 타입 정의 (WorkflowStatusColor 포함)
 ```
 
@@ -210,11 +214,15 @@ frontend/src/
 - [x] CalendarView 종료일 처리 수정 (FullCalendar exclusive end date 보정)
 - [x] ListView 인라인 날짜 편집 기능 추가
 - [x] UTF-8 인코딩 명시적 설정
+- [x] ServerlessSyncModule 추가 (Vercel에서 수동 동기화 지원)
+- [x] 수동 동기화 성능 최적화 (토큰 버킷 Rate Limit, 배치 병렬 처리)
+- [x] 담당자(Assignee) 편집 기능 추가 (TaskModal, AssigneeEditor)
+- [x] Notion Assignees 속성 동기화 (rich_text 타입)
 
 ### Next (4단계: 동기화 고도화)
 - [ ] Notion → App Polling Scheduler (백엔드 스케줄러 구현 필요)
 - [ ] Conflict Resolution 강화 (Last Write Wins → 사용자 선택 옵션)
 - [ ] Supabase Realtime 연동 (실시간 UI 업데이트)
 - [ ] Sync Worker 별도 서버 배포 (Railway/Render)
-- [ ] Settings 페이지 백엔드 API 연동 (수동 동기화)
+- [x] Settings 페이지 백엔드 API 연동 (수동 동기화) - ServerlessSyncModule로 구현
 - [ ] SyncLogs 페이지 백엔드 API 연동

@@ -9,3 +9,4 @@ export { Avatar } from './Avatar';
 export { SyncIndicator } from './SyncIndicator';
 export { Button } from './Button';
 export { Input } from './Input';
+export { ConnectionStatus } from './ConnectionStatus';

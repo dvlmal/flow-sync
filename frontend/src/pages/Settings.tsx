@@ -1,263 +1,268 @@
 /**
  * Settings Page Component
  * System settings and Notion sync configuration
+ *
+ * Design principles:
+ * - Notion-style minimalism
+ * - Atomic Design structure
+ * - Clear sync status feedback
+ * - Reduced cognitive load
  */
 
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   RefreshCw,
   Database,
-  Bell,
-  AlertCircle,
-  Play,
+  ArrowRight,
   FileText,
-  ChevronRight,
-  CheckCircle,
-  Loader2,
+  Cloud,
 } from 'lucide-react';
-import { clsx } from 'clsx';
-import { Button } from '../components/atoms';
+import { Button, ConnectionStatus } from '../components/atoms';
+import {
+  SettingsCard,
+  SyncStatusFeedback,
+  InfoBanner,
+  NavigationLink,
+} from '../components/molecules';
+import { syncApi, type ManualSyncResult } from '../api';
+import type { SyncStatus } from '../types';
+
+/**
+ * P2: Magic Number 상수화
+ * - 명확한 의도 전달 및 유지보수성 향상
+ */
+const AUTO_HIDE_SUCCESS_DELAY_MS = 5000;
+
+/**
+ * 에러 메시지 추출 유틸리티
+ * - API 응답, Error 객체, 문자열 등 다양한 형태 처리
+ */
+function extractErrorMessage(error: unknown, syncResult: ManualSyncResult | null): string {
+  // API 응답에서 구체적인 에러 메시지가 있는 경우
+  if (syncResult?.errors && syncResult.errors.length > 0) {
+    const firstError = syncResult.errors[0];
+    return firstError.error || '알 수 없는 동기화 오류';
+  }
+
+  // Error 객체인 경우
+  if (error instanceof Error) {
+    // Axios 에러 응답 처리
+    const axiosError = error as any;
+    if (axiosError.response?.data?.message) {
+      return axiosError.response.data.message;
+    }
+    if (axiosError.response?.data?.error) {
+      return axiosError.response.data.error;
+    }
+    return error.message;
+  }
+
+  // 문자열인 경우
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  return '동기화 중 오류가 발생했습니다';
+}
+
+/**
+ * 동기화 결과 요약 메시지 생성
+ */
+function getSyncResultSummary(result: ManualSyncResult): string {
+  const parts: string[] = [];
+
+  if (result.successCount > 0) {
+    parts.push(`${result.successCount}개 성공`);
+  }
+  if (result.failedCount > 0) {
+    parts.push(`${result.failedCount}개 실패`);
+  }
+  if (result.skippedCount > 0) {
+    parts.push(`${result.skippedCount}개 건너뜀`);
+  }
+
+  if (parts.length === 0) {
+    return '동기화할 항목이 없습니다';
+  }
+
+  const summary = parts.join(', ');
+  const duration = result.durationMs ? ` (${(result.durationMs / 1000).toFixed(1)}초)` : '';
+
+  return `${summary}${duration}`;
+}
 
 export function Settings() {
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<'success' | 'error' | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
+  const [syncResult, setSyncResult] = useState<ManualSyncResult | null>(null);
+  const [lastError, setLastError] = useState<unknown>(null);
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleManualSync = async () => {
-    setIsSyncing(true);
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleManualSync = useCallback(async () => {
+    if (syncStatus === 'PENDING') return;
+
+    setSyncStatus('PENDING');
     setSyncResult(null);
+    setLastError(null);
 
-    // TODO: 실제 백엔드 API 연동
-    // 현재는 UI 데모용 타이머
-    setTimeout(() => {
-      setIsSyncing(false);
-      setSyncResult('success'); // or 'error'
+    try {
+      const result = await syncApi.triggerManualSync({
+        direction: 'APP_TO_NOTION',
+      });
+      setSyncResult(result);
+      setSyncStatus(result.success ? 'SUCCESS' : 'ERROR');
 
-      // 3초 후 결과 메시지 숨김
-      setTimeout(() => setSyncResult(null), 3000);
-    }, 2000);
-  };
+      // Auto-hide success after configured delay
+      if (result.success) {
+        syncTimeoutRef.current = setTimeout(() => {
+          setSyncStatus('IDLE');
+        }, AUTO_HIDE_SUCCESS_DELAY_MS);
+      }
+    } catch (error) {
+      setLastError(error);
+      setSyncStatus('ERROR');
+    }
+  }, [syncStatus]);
+
+  const handleRetry = useCallback(() => {
+    handleManualSync();
+  }, [handleManualSync]);
+
+  // P2: 구체적인 에러 메시지 표시
+  const errorMessage = syncStatus === 'ERROR'
+    ? extractErrorMessage(lastError, syncResult)
+    : '동기화 실패';
+
+  // P2: 성공 시 상세 결과 표시
+  const successMessage = syncResult
+    ? getSyncResultSummary(syncResult)
+    : '동기화 완료';
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+    <div className="max-w-2xl mx-auto py-6 px-4 sm:px-6">
+      {/* Page Header */}
+      <header className="mb-8">
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
           설정
         </h1>
-        <p className="text-gray-500 dark:text-gray-400">
-          시스템 설정 및 동기화 구성
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          동기화 및 연결 상태를 관리합니다
         </p>
-      </div>
+      </header>
 
-      <div className="space-y-6">
-        {/* Manual Sync */}
+      <div className="space-y-4">
+        {/* Manual Sync Section */}
         <SettingsCard
           icon={RefreshCw}
-          title="수동 동기화"
-          description="Notion과 데이터를 즉시 동기화합니다"
+          title="Notion 동기화"
+          description="데이터를 Notion과 동기화합니다"
         >
           <div className="space-y-4">
-            {/* Sync Button */}
-            <div className="flex items-center gap-4">
+            {/* Sync Direction Indicator */}
+            <div className="flex items-center gap-3 py-2">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <Cloud className="w-4 h-4" />
+                <span className="font-medium">FlowSync</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-gray-400" />
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">Notion</span>
+              </div>
+            </div>
+
+            {/* Sync Action */}
+            <div className="flex items-center gap-3">
               <Button
                 onClick={handleManualSync}
-                disabled={isSyncing}
-                className="min-w-[140px]"
+                loading={syncStatus === 'PENDING'}
+                disabled={syncStatus === 'PENDING'}
+                size="md"
               >
-                {isSyncing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    동기화 중...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4" />
-                    동기화 실행
-                  </>
-                )}
+                {syncStatus === 'PENDING' ? '동기화 중...' : '지금 동기화'}
               </Button>
 
-              {syncResult === 'success' && (
-                <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
-                  <CheckCircle className="w-4 h-4" />
-                  동기화 완료
-                </span>
-              )}
-              {syncResult === 'error' && (
-                <span className="flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
-                  <AlertCircle className="w-4 h-4" />
-                  동기화 실패
-                </span>
-              )}
+              <SyncStatusFeedback
+                status={syncStatus}
+                onRetry={handleRetry}
+                successMessage={successMessage}
+                errorMessage={errorMessage}
+              />
             </div>
 
-            {/* Notice */}
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                <strong>App → Notion:</strong> 앱에서 변경된 내용을 Notion에 반영합니다.
-              </p>
-              <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                Notion → App 동기화는 개발 예정입니다.
-              </p>
-            </div>
+            {/* Sync Result Details (when errors exist) */}
+            {syncStatus === 'ERROR' && syncResult?.errors && syncResult.errors.length > 1 && (
+              <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                  {syncResult.errors.length}개의 오류 발생:
+                </p>
+                <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
+                  {syncResult.errors.slice(0, 5).map((err, index) => (
+                    <li key={index} className="truncate">
+                      - {err.error}
+                    </li>
+                  ))}
+                  {syncResult.errors.length > 5 && (
+                    <li className="text-red-500">
+                      ... 외 {syncResult.errors.length - 5}개
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
 
-            {/* View Logs Link */}
-            <Link
+            {/* Info Notice */}
+            <InfoBanner variant="info">
+              앱에서 변경한 내용이 Notion에 반영됩니다.
+              Notion에서 앱으로의 동기화는 추후 지원 예정입니다.
+            </InfoBanner>
+
+            {/* Navigation to Sync Logs */}
+            <NavigationLink
               to="/sync-logs"
-              className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <FileText className="w-5 h-5 text-gray-500" />
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">
-                    동기화 로그 보기
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    동기화 이력 및 오류 확인
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
-            </Link>
+              icon={FileText}
+              title="동기화 기록"
+              description="동기화 이력 및 오류 확인"
+            />
           </div>
         </SettingsCard>
 
-        {/* Notion Sync Settings */}
-        <SettingsCard
-          icon={RefreshCw}
-          title="자동 동기화"
-          description="Notion과의 자동 데이터 동기화 설정"
-        >
-          <div className="space-y-4">
-            {/* Sync Status */}
-            <div className="flex items-center justify-between p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                <div>
-                  <p className="font-medium text-yellow-800 dark:text-yellow-200">
-                    Notion → App 자동 동기화 미구현
-                  </p>
-                  <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                    현재 App → Notion 단방향 동기화만 지원됩니다
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Sync Direction Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full" />
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    App → Notion
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  앱에서 작업을 수정하면 Notion에 자동 반영됩니다
-                </p>
-              </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full" />
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    Notion → App
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  개발 예정 - Notion 변경사항 자동 동기화
-                </p>
-              </div>
-            </div>
-
-            {/* Future Settings (Disabled) */}
-            <div className="opacity-50 pointer-events-none">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                동기화 주기 (개발 예정)
-              </h4>
-              <div className="flex items-center gap-4">
-                <select
-                  disabled
-                  className="px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800"
-                >
-                  <option>1분</option>
-                  <option>5분</option>
-                  <option>15분</option>
-                  <option>30분</option>
-                </select>
-                <span className="text-sm text-gray-500">마다 Notion 변경사항 확인</span>
-              </div>
-            </div>
-          </div>
-        </SettingsCard>
-
-        {/* Database Info */}
+        {/* Connection Status Section */}
         <SettingsCard
           icon={Database}
-          title="데이터베이스"
-          description="Supabase PostgreSQL 연결 정보"
+          title="연결 상태"
+          description="서비스 연결 상태를 확인합니다"
         >
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <span className="text-sm text-gray-600 dark:text-gray-400">상태</span>
-              <span className="flex items-center gap-2 text-sm font-medium text-green-600 dark:text-green-400">
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
-                연결됨
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <span className="text-sm text-gray-600 dark:text-gray-400">제공자</span>
-              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                Supabase
-              </span>
-            </div>
+          <div className="space-y-2">
+            <ConnectionStatusRow label="Supabase" state="connected" />
+            <ConnectionStatusRow label="Notion API" state="connected" />
           </div>
-        </SettingsCard>
-
-        {/* Notifications (Future) */}
-        <SettingsCard
-          icon={Bell}
-          title="알림"
-          description="알림 설정 (개발 예정)"
-          disabled
-        >
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            추후 동기화 오류 알림, 마감일 알림 등이 추가될 예정입니다.
-          </p>
         </SettingsCard>
       </div>
     </div>
   );
 }
 
-// Settings Card Component
-interface SettingsCardProps {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-  disabled?: boolean;
-  children: React.ReactNode;
+/**
+ * ConnectionStatusRow - Internal component for connection status display
+ */
+interface ConnectionStatusRowProps {
+  label: string;
+  state: 'connected' | 'disconnected' | 'pending';
 }
 
-function SettingsCard({ icon: Icon, title, description, disabled, children }: SettingsCardProps) {
+function ConnectionStatusRow({ label, state }: ConnectionStatusRowProps) {
   return (
-    <div
-      className={clsx(
-        'bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6',
-        disabled && 'opacity-60'
-      )}
-    >
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-          <Icon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-        </div>
-        <div>
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
-          <p className="text-sm text-gray-500">{description}</p>
-        </div>
-      </div>
-      {children}
+    <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+      <span className="text-sm text-gray-600 dark:text-gray-400">{label}</span>
+      <ConnectionStatus state={state} />
     </div>
   );
 }

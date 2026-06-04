@@ -24,17 +24,29 @@ export async function fetchTask(id: string): Promise<Task> {
 
 /**
  * Create a new task
+ * Transforms Assignee[] to string[] for backend compatibility
  */
 export async function createTask(dto: CreateTaskDto): Promise<Task> {
-  const { data } = await apiClient.post<Task>('/tasks', dto);
+  // Transform assignees from Assignee[] to string[] (names only)
+  const transformedDto = {
+    ...dto,
+    assignees: dto.assignees?.map((a) => a.name),
+  };
+  const { data } = await apiClient.post<Task>('/tasks', transformedDto);
   return data;
 }
 
 /**
  * Update an existing task
+ * Transforms Assignee[] to string[] for backend compatibility
  */
 export async function updateTask(id: string, dto: UpdateTaskDto): Promise<Task> {
-  const { data } = await apiClient.put<Task>(`/tasks/${id}`, dto);
+  // Transform assignees from Assignee[] to string[] (names only)
+  const transformedDto = {
+    ...dto,
+    assignees: dto.assignees?.map((a) => a.name),
+  };
+  const { data } = await apiClient.put<Task>(`/tasks/${id}`, transformedDto);
   return data;
 }
 

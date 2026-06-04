@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Delete,
+  Body,
   Param,
   Query,
   HttpCode,
@@ -11,6 +12,8 @@ import {
 import { SyncQueueService } from './services/sync-queue.service';
 import { SyncLogService } from './services/sync-log.service';
 import { DlqService } from './services/dlq.service';
+import { ManualSyncService } from './services/manual-sync.service';
+import { ManualSyncDto } from './dto/manual-sync.dto';
 
 /**
  * 동기화 관리 API 컨트롤러
@@ -24,7 +27,29 @@ export class SyncController {
     private readonly syncQueueService: SyncQueueService,
     private readonly syncLogService: SyncLogService,
     private readonly dlqService: DlqService,
+    private readonly manualSyncService: ManualSyncService,
   ) {}
+
+  /**
+   * 수동 동기화 실행
+   * POST /api/sync/manual
+   *
+   * @param dto - 동기화 옵션
+   * @param dto.taskId - 특정 Task ID (선택, 없으면 전체 동기화)
+   * @param dto.direction - 동기화 방향 (선택, 기본값: APP_TO_NOTION)
+   *
+   * @returns 동기화 결과
+   * - success: 성공 여부
+   * - totalCount: 총 처리 항목 수
+   * - successCount: 성공 카운트
+   * - failedCount: 실패 카운트
+   * - errors: 에러 상세 목록
+   */
+  @Post('manual')
+  @HttpCode(HttpStatus.OK)
+  async executeManualSync(@Body() dto: ManualSyncDto) {
+    return this.manualSyncService.executeManualSync(dto);
+  }
 
   /**
    * 큐 상태 조회

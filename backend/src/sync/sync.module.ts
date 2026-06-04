@@ -4,6 +4,7 @@ import { SyncQueueService } from './services/sync-queue.service';
 import { NotionSyncService } from './services/notion-sync.service';
 import { SyncLogService } from './services/sync-log.service';
 import { DlqService } from './services/dlq.service';
+import { ManualSyncService } from './services/manual-sync.service';
 import { SyncProcessor } from './processors/sync.processor';
 import { SyncController } from './sync.controller';
 import { NotionModule } from '../notion/notion.module';
@@ -55,6 +56,7 @@ import { SYNC_QUEUE_SERVICE } from '../common/constants/injection-tokens';
     NotionSyncService,
     SyncLogService,
     DlqService,
+    ManualSyncService,
     SyncProcessor,
     // TaskService에서 injection token으로 주입받을 수 있도록 alias 제공
     {
@@ -62,6 +64,11 @@ import { SYNC_QUEUE_SERVICE } from '../common/constants/injection-tokens';
       useExisting: SyncQueueService,
     },
   ],
-  exports: [SyncQueueService, SyncLogService, SYNC_QUEUE_SERVICE],
+  exports: [
+    SyncQueueService,
+    SyncLogService,
+    ManualSyncService,
+    SYNC_QUEUE_SERVICE,
+  ],
 })
 export class SyncModule {}

@@ -286,7 +286,8 @@ export class NotionService implements OnModuleInit {
       const response = await this.notion.databases.retrieve({
         database_id: this.databaseId,
       });
-      return (response as any).properties;
+      this.logger.log(`Database response keys: ${Object.keys(response)}`);
+      return (response as any).properties || response;
     } catch (error) {
       this.logger.error('Failed to get database schema', error);
       throw error;

@@ -3,13 +3,14 @@ import { NotionService } from '../../notion/notion.service';
 import { TaskSyncPayload } from '../../common/types/sync.types';
 
 /**
- * Notion 동기화 서비스
+ * Serverless Notion 동기화 서비스
  * - Task 데이터를 Notion 페이지 properties 형식으로 변환
  * - Notion API 호출 추상화
+ * - BullMQ 의존성 없음
  */
 @Injectable()
-export class NotionSyncService {
-  private readonly logger = new Logger(NotionSyncService.name);
+export class ServerlessNotionSyncService {
+  private readonly logger = new Logger(ServerlessNotionSyncService.name);
 
   // App Status -> Notion Status 매핑
   private readonly statusMapping: Record<string, string> = {
@@ -127,7 +128,7 @@ export class NotionSyncService {
       const result = await this.notionService.createPage(properties);
       this.logger.log(`Notion page created: ${result.id}`);
       return result;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to create Notion page: ${error.message}`);
       throw error;
     }
@@ -189,7 +190,7 @@ export class NotionSyncService {
       const result = await this.notionService.archivePage(notionPageId);
       this.logger.log(`Notion page archived: ${notionPageId}`);
       return result;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to archive Notion page: ${error.message}`);
       throw error;
     }

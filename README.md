@@ -8,6 +8,7 @@ MCP 기반 노션 연동형 프로젝트 워크플로우 관리 시스템
 - **Notion 양방향 동기화**: MCP(Model Context Protocol) 기반 자동 동기화
 - **워크플로우 커스터마이징**: 프로젝트별 상태 단계 설정 (8색 팔레트 지원)
 - **프로젝트 관리**: 프로젝트 CRUD 및 워크플로우 상태 관리
+- **담당자 관리**: Task별 담당자 지정 및 Notion 동기화
 - **동기화 모니터링**: 동기화 로그 조회 및 수동 동기화 기능
 - **문서 자동 생성**: 업무 완료 시 Notion 보고서 템플릿 자동 생성
 
@@ -106,7 +107,8 @@ flow-sync/
 │   │   ├── workflow-status/ # 워크플로우 상태 모듈
 │   │   ├── notion/          # Notion 연동 모듈
 │   │   ├── supabase/        # Supabase REST API 클라이언트
-│   │   ├── sync/            # 동기화 모듈 (로컬 전용)
+│   │   ├── sync/            # 동기화 모듈 (로컬 전용, BullMQ)
+│   │   ├── serverless-sync/ # 수동 동기화 모듈 (Vercel 호환)
 │   │   ├── app.module.ts
 │   │   └── main.ts
 │   └── test/                # E2E 테스트
@@ -155,6 +157,31 @@ React (Vercel Static) → Serverless Function → Supabase REST API → PostgreS
 | GET | `/api/notion/pages/:id` | 특정 페이지 조회 |
 | POST | `/api/notion/pages` | 새 페이지 생성 |
 | PUT | `/api/notion/pages/:id` | 페이지 업데이트 |
+
+### Sync API (`/api/sync`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/sync/manual` | 수동 동기화 실행 (App → Notion) |
+
+**수동 동기화 Request:**
+```json
+{
+  "projectId": "uuid",        // 선택: 특정 프로젝트만 동기화
+  "forceFullSync": false      // true: 전체 재동기화
+}
+```
+
+**수동 동기화 Response:**
+```json
+{
+  "success": true,
+  "syncedCount": 5,
+  "failedCount": 0,
+  "errors": [],
+  "duration": 3990
+}
+```
 
 ## 스크립트
 

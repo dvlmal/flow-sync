@@ -9,3 +9,8 @@ export { Dropdown, DropdownItem } from './Dropdown';
 export { EmptyState } from './EmptyState';
 export { LoadingSpinner } from './LoadingSpinner';
 export { ViewSwitcher } from './ViewSwitcher';
+export { SettingsCard } from './SettingsCard';
+export { SyncStatusFeedback } from './SyncStatusFeedback';
+export { InfoBanner } from './InfoBanner';
+export { NavigationLink } from './NavigationLink';
+export { AssigneeEditor } from './AssigneeEditor';

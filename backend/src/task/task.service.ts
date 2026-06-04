@@ -201,7 +201,9 @@ export class TaskService {
         );
       } else {
         // Notion 페이지가 없으면 CREATE Job (새로 생성)
-        this.logger.log(`Task ${task.id} has no notion_page_id, creating new Notion page`);
+        this.logger.log(
+          `Task ${task.id} has no notion_page_id, creating new Notion page`,
+        );
         await this.syncQueueService.addCreateJob(task.id, syncPayload);
       }
     }
@@ -412,11 +414,26 @@ export class TaskService {
       priority: task.priority,
       startDate: task.start_date,
       endDate: task.end_date,
-      assignees: task.assignees ?? [],
+      assignees: this.formatAssignees(task.assignees),
       tags: task.tags ? task.tags.split(',') : [],
       createdAt: task.created_at,
       updatedAt: task.updated_at,
       deletedAt: task.deleted_at,
     };
+  }
+
+  /**
+   * Assignees 포맷 (string[] -> Assignee[])
+   */
+  private formatAssignees(
+    assignees: string[] | null | undefined,
+  ): Array<{ id: string; name: string }> {
+    if (!assignees || !Array.isArray(assignees)) return [];
+    return assignees
+      .filter((name) => typeof name === 'string' && name.trim())
+      .map((name, index) => ({
+        id: `assignee-${index}-${name.replace(/\s+/g, '-').toLowerCase()}`,
+        name: name.trim(),
+      }));
   }
 }

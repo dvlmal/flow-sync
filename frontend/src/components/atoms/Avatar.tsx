@@ -6,7 +6,7 @@
 import { clsx } from 'clsx';
 
 interface AvatarProps {
-  name: string;
+  name?: string | null;
   src?: string;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
@@ -18,16 +18,18 @@ const sizeClasses = {
   lg: 'w-8 h-8 text-sm',
 };
 
-function getInitials(name: string): string {
+function getInitials(name: string | undefined | null): string {
+  if (!name) return '?';
   return name
     .split(' ')
     .map((n) => n[0])
+    .filter(Boolean)
     .join('')
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || '?';
 }
 
-function getColorFromName(name: string): string {
+function getColorFromName(name: string | undefined | null): string {
   const colors = [
     'bg-blue-500',
     'bg-green-500',
@@ -38,6 +40,7 @@ function getColorFromName(name: string): string {
     'bg-indigo-500',
     'bg-teal-500',
   ];
+  if (!name) return colors[0];
   const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return colors[hash % colors.length];
 }
@@ -54,12 +57,12 @@ export function Avatar({ name, src, size = 'md', className }: AvatarProps) {
         !src && bgColor,
         className
       )}
-      title={name}
+      title={name || ''}
     >
       {src ? (
         <img
           src={src}
-          alt={name}
+          alt={name || 'Avatar'}
           className="w-full h-full rounded-full object-cover"
         />
       ) : (

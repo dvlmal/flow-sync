@@ -46,7 +46,10 @@ export class SupabaseService implements OnModuleInit {
     try {
       const result = await this.from('project').select('id').limit(1);
       if (result.error) {
-        this.logger.warn('Supabase connection test failed:', result.error.message);
+        this.logger.warn(
+          'Supabase connection test failed:',
+          result.error.message,
+        );
       } else {
         this.logger.log('Successfully connected to Supabase');
       }
@@ -98,11 +101,7 @@ class QueryBuilder {
   private countOption: 'exact' | null = null;
   private headOnly = false;
 
-  constructor(
-    baseUrl: string,
-    headers: Record<string, string>,
-    table: string,
-  ) {
+  constructor(baseUrl: string, headers: Record<string, string>, table: string) {
     this.baseUrl = baseUrl;
     this.headers = headers;
     this.table = table;
@@ -159,7 +158,7 @@ class QueryBuilder {
       this.filters.push(`${column}=eq.impossible_value_that_never_matches`);
     } else {
       const escapedValues = values.map((v) =>
-        typeof v === 'string' ? `"${v}"` : v
+        typeof v === 'string' ? `"${v}"` : v,
       );
       this.filters.push(`${column}=in.(${escapedValues.join(',')})`);
     }
@@ -217,7 +216,10 @@ class QueryBuilder {
 
       if (!response.ok) {
         const error = await response.json();
-        return { data: null, error: { message: error.message || 'Unknown error' } };
+        return {
+          data: null,
+          error: { message: error.message || 'Unknown error' },
+        };
       }
 
       const data = await response.json();
@@ -264,12 +266,23 @@ class QueryBuilder {
 
   // UPDATE
   update(data: Record<string, any>): UpdateBuilder {
-    return new UpdateBuilder(this.baseUrl, this.headers, this.table, data, this.filters);
+    return new UpdateBuilder(
+      this.baseUrl,
+      this.headers,
+      this.table,
+      data,
+      this.filters,
+    );
   }
 
   // DELETE
   delete(): DeleteBuilder {
-    return new DeleteBuilder(this.baseUrl, this.headers, this.table, this.filters);
+    return new DeleteBuilder(
+      this.baseUrl,
+      this.headers,
+      this.table,
+      this.filters,
+    );
   }
 }
 
@@ -337,13 +350,16 @@ class InsertBuilder {
 
       if (!response.ok) {
         const error = await response.json();
-        return { data: null, error: { message: error.message || 'Insert failed' } };
+        return {
+          data: null,
+          error: { message: error.message || 'Insert failed' },
+        };
       }
 
       const data = await response.json();
       return {
         data: this.returnSingle ? data[0] : data,
-        error: null
+        error: null,
       };
     } catch (error: any) {
       return { data: null, error: { message: error.message } };
@@ -396,7 +412,10 @@ class UpdateBuilder {
 
       if (!response.ok) {
         const error = await response.json();
-        return { data: null, error: { message: error.message || 'Update failed' } };
+        return {
+          data: null,
+          error: { message: error.message || 'Update failed' },
+        };
       }
 
       const data = await response.json();
@@ -448,7 +467,10 @@ class DeleteBuilder {
 
       if (!response.ok) {
         const error = await response.json();
-        return { data: null, error: { message: error.message || 'Delete failed' } };
+        return {
+          data: null,
+          error: { message: error.message || 'Delete failed' },
+        };
       }
 
       return { data: null, error: null };

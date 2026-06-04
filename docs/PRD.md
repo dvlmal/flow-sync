@@ -50,7 +50,8 @@
 
 - 실시간 상태 업데이트
 - 업무별 댓글/히스토리 관리
-- 담당자 지정 및 태그 관리
+- 담당자 지정 및 편집 (Notion 동기화 지원)
+- 태그 관리
 
 ---
 
@@ -192,7 +193,10 @@ Scheduler (1~5분 주기) → Notion 조회 → updated_time 비교 → 변경�
 - [ ] Notion → App Polling Scheduler
 - [ ] Conflict Resolution 강화
 - [x] Retry & Dead Letter Queue
-- [ ] Settings/SyncLogs 백엔드 API 연동
+- [x] Settings 수동 동기화 API 연동 (ServerlessSyncModule)
+- [x] 수동 동기화 성능 최적화 (토큰 버킷 Rate Limit, 배치 병렬 처리)
+- [x] 담당자(Assignee) 편집 기능 및 Notion 동기화
+- [ ] SyncLogs 백엔드 API 연동
 
 ### Vercel 배포
 - [x] Vercel Serverless Functions 설정
@@ -247,3 +251,4 @@ Scheduler (1~5분 주기) → Notion 조회 → updated_time 비교 → 변경�
 | v3.4 | Prisma → Supabase REST API 전환, Vercel Serverless Functions 적용 |
 | v3.5 | Project Management 페이지, Workflow Status CRUD 및 색상 선택, Settings/SyncLogs 페이지 |
 | v3.6 | SyncModule 동적 로딩, Sync 서비스 Supabase 마이그레이션, ListView 인라인 날짜 편집 |
+| v3.7 | ServerlessSyncModule 추가, 수동 동기화 성능 최적화, 담당자 편집 기능 |

@@ -98,11 +98,15 @@ export class WorkflowStatusService {
       .order('sort_ordr', { ascending: true });
 
     if (error) {
-      this.logger.error(`Failed to fetch all workflow statuses: ${error.message}`);
+      this.logger.error(
+        `Failed to fetch all workflow statuses: ${error.message}`,
+      );
       throw error;
     }
 
-    return (statuses ?? []).map((status) => this.formatStatusResponse(status, 0));
+    return (statuses ?? []).map((status) =>
+      this.formatStatusResponse(status, 0),
+    );
   }
 
   /**
@@ -272,7 +276,9 @@ export class WorkflowStatusService {
       .is('deleted_at', null);
 
     if (countError) {
-      this.logger.error(`Failed to check task references: ${countError.message}`);
+      this.logger.error(
+        `Failed to check task references: ${countError.message}`,
+      );
       throw countError;
     }
 

@@ -1,3 +1,14 @@
+// Suppress url.parse() deprecation warning from parseurl package (Express dependency)
+// This is a known issue in Express ecosystem - parseurl@1.3.3 uses legacy url.parse()
+// See: https://github.com/pillarjs/parseurl/issues/18
+const originalEmitWarning = process.emitWarning;
+process.emitWarning = (warning, ...args) => {
+  if (typeof warning === 'string' && warning.includes('url.parse()')) {
+    return;
+  }
+  return originalEmitWarning.call(process, warning, ...args as [string?, string?]);
+};
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../backend/src/app.module';
 import { json } from 'express';

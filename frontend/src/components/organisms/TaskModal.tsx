@@ -9,7 +9,7 @@ import { X, Calendar, User, Flag, Tag as TagIcon, AlignLeft, Trash2 } from 'luci
 import { clsx } from 'clsx';
 import { format, parseISO } from 'date-fns';
 import { Button, Input, PriorityIcon } from '../atoms';
-import { StatusBadge, AvatarGroup } from '../molecules';
+import { StatusBadge, AvatarGroup, AssigneeEditor } from '../molecules';
 import { useUpdateTask, useDeleteTask } from '../../hooks';
 import type { Task, TaskPriority, WorkflowStatus, UpdateTaskDto } from '../../types';
 import { PRIORITY_CONFIG, STATUS_LABELS } from '../../types';
@@ -39,6 +39,7 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
         statusId: task.statusId ?? undefined,
         startDate: task.startDate ?? undefined,
         endDate: task.endDate ?? undefined,
+        assignees: task.assignees ?? [],
       });
       setIsEditing(false);
       setShowDeleteConfirm(false);
@@ -280,18 +281,29 @@ export function TaskModal({ task, statuses, isOpen, onClose }: TaskModalProps) {
             </div>
 
             {/* Assignees */}
-            <div className="flex items-center gap-4">
-              <div className="w-24 flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-start gap-4">
+              <div className="w-24 flex items-center gap-2 text-sm text-gray-500 pt-1">
                 <User className="w-4 h-4" />
                 담당자
               </div>
-              <span className="text-sm text-gray-900 dark:text-gray-100">
-                {task.assignees && task.assignees.length > 0 ? (
-                  <AvatarGroup assignees={task.assignees} max={5} size="md" />
+              <div className="flex-1">
+                {isEditing ? (
+                  <AssigneeEditor
+                    assignees={editedTask.assignees ?? []}
+                    onChange={(newAssignees) =>
+                      setEditedTask({ ...editedTask, assignees: newAssignees })
+                    }
+                  />
                 ) : (
-                  '담당자 없음'
+                  <span className="text-sm text-gray-900 dark:text-gray-100">
+                    {task.assignees && task.assignees.length > 0 ? (
+                      <AvatarGroup assignees={task.assignees} max={5} size="md" />
+                    ) : (
+                      '담당자 없음'
+                    )}
+                  </span>
                 )}
-              </span>
+              </div>
             </div>
           </div>
 
