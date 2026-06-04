@@ -7,6 +7,7 @@
  * - Atomic Design structure
  * - Clear sync status feedback
  * - Reduced cognitive load
+ * - Bidirectional sync support
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -14,6 +15,7 @@ import {
   RefreshCw,
   Database,
   ArrowRight,
+  ArrowLeft,
   FileText,
   Cloud,
 } from 'lucide-react';
@@ -21,32 +23,68 @@ import { Button, ConnectionStatus } from '../components/atoms';
 import {
   SettingsCard,
   SyncStatusFeedback,
-  InfoBanner,
   NavigationLink,
 } from '../components/molecules';
-import { syncApi, type ManualSyncResult } from '../api';
+import { syncApi, type ManualSyncResult, type SyncDirection } from '../api';
 import type { SyncStatus } from '../types';
 
 /**
- * P2: Magic Number 상수화
- * - 명확한 의도 전달 및 유지보수성 향상
+ * P2: Magic Number constants
+ * - Clear intent and improved maintainability
  */
 const AUTO_HIDE_SUCCESS_DELAY_MS = 5000;
 
 /**
- * 에러 메시지 추출 유틸리티
- * - API 응답, Error 객체, 문자열 등 다양한 형태 처리
+ * Sync direction configuration
+ */
+interface SyncDirectionConfig {
+  direction: SyncDirection;
+  title: string;
+  description: string;
+  fromLabel: string;
+  toLabel: string;
+  fromIcon: typeof Cloud;
+  buttonLabel: string;
+  pendingLabel: string;
+}
+
+const SYNC_DIRECTIONS: Record<SyncDirection, SyncDirectionConfig> = {
+  APP_TO_NOTION: {
+    direction: 'APP_TO_NOTION',
+    title: 'App to Notion',
+    description: '앱에서 변경한 내용을 Notion에 반영합니다',
+    fromLabel: 'FlowSync',
+    toLabel: 'Notion',
+    fromIcon: Cloud,
+    buttonLabel: '동기화',
+    pendingLabel: '동기화 중...',
+  },
+  NOTION_TO_APP: {
+    direction: 'NOTION_TO_APP',
+    title: 'Notion to App',
+    description: 'Notion에서 변경한 내용을 앱에 반영합니다',
+    fromLabel: 'Notion',
+    toLabel: 'FlowSync',
+    fromIcon: Cloud,
+    buttonLabel: '동기화',
+    pendingLabel: '동기화 중...',
+  },
+};
+
+/**
+ * Error message extraction utility
+ * - Handles API responses, Error objects, strings
  */
 function extractErrorMessage(error: unknown, syncResult: ManualSyncResult | null): string {
-  // API 응답에서 구체적인 에러 메시지가 있는 경우
+  // API response with specific error messages
   if (syncResult?.errors && syncResult.errors.length > 0) {
     const firstError = syncResult.errors[0];
     return firstError.error || '알 수 없는 동기화 오류';
   }
 
-  // Error 객체인 경우
+  // Error object
   if (error instanceof Error) {
-    // Axios 에러 응답 처리
+    // Axios error response handling
     const axiosError = error as any;
     if (axiosError.response?.data?.message) {
       return axiosError.response.data.message;
@@ -57,7 +95,7 @@ function extractErrorMessage(error: unknown, syncResult: ManualSyncResult | null
     return error.message;
   }
 
-  // 문자열인 경우
+  // String
   if (typeof error === 'string') {
     return error;
   }
@@ -66,7 +104,7 @@ function extractErrorMessage(error: unknown, syncResult: ManualSyncResult | null
 }
 
 /**
- * 동기화 결과 요약 메시지 생성
+ * Sync result summary message generation
  */
 function getSyncResultSummary(result: ManualSyncResult): string {
   const parts: string[] = [];
@@ -91,60 +129,83 @@ function getSyncResultSummary(result: ManualSyncResult): string {
   return `${summary}${duration}`;
 }
 
-export function Settings() {
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
-  const [syncResult, setSyncResult] = useState<ManualSyncResult | null>(null);
-  const [lastError, setLastError] = useState<unknown>(null);
-  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+/**
+ * Individual sync state for each direction
+ */
+interface DirectionSyncState {
+  status: SyncStatus;
+  result: ManualSyncResult | null;
+  error: unknown;
+}
 
-  // Cleanup timeout on unmount
+const initialSyncState: DirectionSyncState = {
+  status: 'IDLE',
+  result: null,
+  error: null,
+};
+
+export function Settings() {
+  // Independent state for each direction
+  const [appToNotionState, setAppToNotionState] = useState<DirectionSyncState>(initialSyncState);
+  const [notionToAppState, setNotionToAppState] = useState<DirectionSyncState>(initialSyncState);
+
+  const appToNotionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notionToAppTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
+      if (appToNotionTimeoutRef.current) {
+        clearTimeout(appToNotionTimeoutRef.current);
+      }
+      if (notionToAppTimeoutRef.current) {
+        clearTimeout(notionToAppTimeoutRef.current);
       }
     };
   }, []);
 
-  const handleManualSync = useCallback(async () => {
-    if (syncStatus === 'PENDING') return;
+  const handleSync = useCallback(async (direction: SyncDirection) => {
+    const isAppToNotion = direction === 'APP_TO_NOTION';
+    const setState = isAppToNotion ? setAppToNotionState : setNotionToAppState;
+    const timeoutRef = isAppToNotion ? appToNotionTimeoutRef : notionToAppTimeoutRef;
+    const currentState = isAppToNotion ? appToNotionState : notionToAppState;
 
-    setSyncStatus('PENDING');
-    setSyncResult(null);
-    setLastError(null);
+    if (currentState.status === 'PENDING') return;
+
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    setState({
+      status: 'PENDING',
+      result: null,
+      error: null,
+    });
 
     try {
-      const result = await syncApi.triggerManualSync({
-        direction: 'APP_TO_NOTION',
+      const result = await syncApi.triggerManualSync({ direction });
+      setState({
+        status: result.success ? 'SUCCESS' : 'ERROR',
+        result,
+        error: null,
       });
-      setSyncResult(result);
-      setSyncStatus(result.success ? 'SUCCESS' : 'ERROR');
 
       // Auto-hide success after configured delay
       if (result.success) {
-        syncTimeoutRef.current = setTimeout(() => {
-          setSyncStatus('IDLE');
+        timeoutRef.current = setTimeout(() => {
+          setState(prev => ({ ...prev, status: 'IDLE' }));
         }, AUTO_HIDE_SUCCESS_DELAY_MS);
       }
     } catch (error) {
-      setLastError(error);
-      setSyncStatus('ERROR');
+      setState({
+        status: 'ERROR',
+        result: null,
+        error,
+      });
     }
-  }, [syncStatus]);
-
-  const handleRetry = useCallback(() => {
-    handleManualSync();
-  }, [handleManualSync]);
-
-  // P2: 구체적인 에러 메시지 표시
-  const errorMessage = syncStatus === 'ERROR'
-    ? extractErrorMessage(lastError, syncResult)
-    : '동기화 실패';
-
-  // P2: 성공 시 상세 결과 표시
-  const successMessage = syncResult
-    ? getSyncResultSummary(syncResult)
-    : '동기화 완료';
+  }, [appToNotionState.status, notionToAppState.status]);
 
   return (
     <div className="max-w-2xl mx-auto py-6 px-4 sm:px-6">
@@ -163,74 +224,37 @@ export function Settings() {
         <SettingsCard
           icon={RefreshCw}
           title="Notion 동기화"
-          description="데이터를 Notion과 동기화합니다"
+          description="데이터를 Notion과 양방향으로 동기화합니다"
         >
-          <div className="space-y-4">
-            {/* Sync Direction Indicator */}
-            <div className="flex items-center gap-3 py-2">
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <Cloud className="w-4 h-4" />
-                <span className="font-medium">FlowSync</span>
-              </div>
-              <ArrowRight className="w-4 h-4 text-gray-400" />
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">Notion</span>
-              </div>
-            </div>
+          <div className="space-y-6">
+            {/* App to Notion Sync */}
+            <SyncDirectionPanel
+              config={SYNC_DIRECTIONS.APP_TO_NOTION}
+              state={appToNotionState}
+              onSync={() => handleSync('APP_TO_NOTION')}
+              icon={<ArrowRight className="w-4 h-4 text-blue-500" />}
+            />
 
-            {/* Sync Action */}
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleManualSync}
-                loading={syncStatus === 'PENDING'}
-                disabled={syncStatus === 'PENDING'}
-                size="md"
-              >
-                {syncStatus === 'PENDING' ? '동기화 중...' : '지금 동기화'}
-              </Button>
+            {/* Divider */}
+            <div className="border-t border-gray-200 dark:border-gray-700" />
 
-              <SyncStatusFeedback
-                status={syncStatus}
-                onRetry={handleRetry}
-                successMessage={successMessage}
-                errorMessage={errorMessage}
-              />
-            </div>
-
-            {/* Sync Result Details (when errors exist) */}
-            {syncStatus === 'ERROR' && syncResult?.errors && syncResult.errors.length > 1 && (
-              <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                  {syncResult.errors.length}개의 오류 발생:
-                </p>
-                <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
-                  {syncResult.errors.slice(0, 5).map((err, index) => (
-                    <li key={index} className="truncate">
-                      - {err.error}
-                    </li>
-                  ))}
-                  {syncResult.errors.length > 5 && (
-                    <li className="text-red-500">
-                      ... 외 {syncResult.errors.length - 5}개
-                    </li>
-                  )}
-                </ul>
-              </div>
-            )}
-
-            {/* Info Notice */}
-            <InfoBanner variant="info">
-              앱에서 변경한 내용이 Notion에 반영됩니다.
-              Notion에서 앱으로의 동기화는 추후 지원 예정입니다.
-            </InfoBanner>
+            {/* Notion to App Sync */}
+            <SyncDirectionPanel
+              config={SYNC_DIRECTIONS.NOTION_TO_APP}
+              state={notionToAppState}
+              onSync={() => handleSync('NOTION_TO_APP')}
+              icon={<ArrowLeft className="w-4 h-4 text-green-500" />}
+            />
 
             {/* Navigation to Sync Logs */}
-            <NavigationLink
-              to="/sync-logs"
-              icon={FileText}
-              title="동기화 기록"
-              description="동기화 이력 및 오류 확인"
-            />
+            <div className="pt-2">
+              <NavigationLink
+                to="/sync-logs"
+                icon={FileText}
+                title="동기화 기록"
+                description="동기화 이력 및 오류 확인"
+              />
+            </div>
           </div>
         </SettingsCard>
 
@@ -246,6 +270,96 @@ export function Settings() {
           </div>
         </SettingsCard>
       </div>
+    </div>
+  );
+}
+
+/**
+ * SyncDirectionPanel - Individual sync direction UI component
+ */
+interface SyncDirectionPanelProps {
+  config: SyncDirectionConfig;
+  state: DirectionSyncState;
+  onSync: () => void;
+  icon: React.ReactNode;
+}
+
+function SyncDirectionPanel({ config, state, onSync, icon }: SyncDirectionPanelProps) {
+  const isPending = state.status === 'PENDING';
+
+  // Error message for display
+  const errorMessage = state.status === 'ERROR'
+    ? extractErrorMessage(state.error, state.result)
+    : '동기화 실패';
+
+  // Success message for display
+  const successMessage = state.result
+    ? getSyncResultSummary(state.result)
+    : '동기화 완료';
+
+  return (
+    <div className="space-y-3">
+      {/* Direction Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {/* Direction Indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {config.fromLabel}
+            </span>
+            {icon}
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {config.toLabel}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Description */}
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        {config.description}
+      </p>
+
+      {/* Sync Action */}
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={onSync}
+          loading={isPending}
+          disabled={isPending}
+          size="md"
+          variant={config.direction === 'APP_TO_NOTION' ? 'primary' : 'secondary'}
+        >
+          {isPending ? config.pendingLabel : config.buttonLabel}
+        </Button>
+
+        <SyncStatusFeedback
+          status={state.status}
+          onRetry={onSync}
+          successMessage={successMessage}
+          errorMessage={errorMessage}
+        />
+      </div>
+
+      {/* Sync Result Details (when errors exist) */}
+      {state.status === 'ERROR' && state.result?.errors && state.result.errors.length > 1 && (
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+          <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+            {state.result.errors.length}개의 오류 발생:
+          </p>
+          <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
+            {state.result.errors.slice(0, 5).map((err, index) => (
+              <li key={index} className="truncate">
+                - {err.error}
+              </li>
+            ))}
+            {state.result.errors.length > 5 && (
+              <li className="text-red-500">
+                ... 외 {state.result.errors.length - 5}개
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

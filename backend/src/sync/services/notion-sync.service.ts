@@ -144,7 +144,7 @@ export class NotionSyncService {
     this.logger.log(`Updating Notion page: ${notionPageId}`);
     this.logger.log(`Sync payload: ${JSON.stringify(payload)}`);
 
-    let properties = this.buildNotionProperties(payload);
+    const properties = this.buildNotionProperties(payload);
 
     try {
       const result = await this.notionService.updatePage(
@@ -169,7 +169,9 @@ export class NotionSyncService {
             notionPageId,
             properties,
           );
-          this.logger.log(`Notion page updated (without ${missingProperty}): ${notionPageId}`);
+          this.logger.log(
+            `Notion page updated (without ${missingProperty}): ${notionPageId}`,
+          );
           return result;
         }
       }

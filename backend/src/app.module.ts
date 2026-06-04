@@ -52,7 +52,9 @@ export class AppModule {
 
     // Vercel 환경: ServerlessSyncModule 로드 (BullMQ 없이 수동 동기화 지원)
     if (isVercel) {
-      this.logger.log('Vercel environment detected - Loading ServerlessSyncModule');
+      this.logger.log(
+        'Vercel environment detected - Loading ServerlessSyncModule',
+      );
       imports.push(ServerlessSyncModule);
     }
     // 로컬 환경 + Redis URL이 있으면 SyncModule 로드
@@ -79,7 +81,9 @@ export class AppModule {
     }
     // 로컬 환경 + Redis 없음: ServerlessSyncModule 로드 (수동 동기화만 가능)
     else {
-      this.logger.log('No Redis URL - Loading ServerlessSyncModule for manual sync only');
+      this.logger.log(
+        'No Redis URL - Loading ServerlessSyncModule for manual sync only',
+      );
       imports.push(ServerlessSyncModule);
     }
 

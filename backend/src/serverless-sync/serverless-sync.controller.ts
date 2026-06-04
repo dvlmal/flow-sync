@@ -82,8 +82,7 @@ export class ServerlessSyncController {
   @Get('queue/status')
   async getQueueStatus() {
     return {
-      message:
-        'Queue functionality is not available in serverless environment',
+      message: 'Queue functionality is not available in serverless environment',
       environment: 'vercel',
       availableFeatures: ['manual-sync', 'sync-history', 'sync-stats'],
       unavailableFeatures: [

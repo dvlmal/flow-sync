@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { ServerlessNotionSyncService } from './serverless-notion-sync.service';
 import { ServerlessSyncLogService } from './serverless-sync-log.service';
+import { NotionService } from '../../notion/notion.service';
 import {
   SyncDirection,
   TaskSyncPayload,
@@ -11,6 +12,22 @@ import {
   isRetryableError,
 } from '../../common/types/sync.types';
 import { ManualSyncDto, ManualSyncResult } from '../dto/manual-sync.dto';
+
+/**
+ * Notion 페이지에서 파싱된 Task 데이터 인터페이스
+ */
+interface ParsedNotionTask {
+  notionPageId: string;
+  title: string;
+  content: string | null;
+  status: string | null;
+  priority: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  tags: string | null;
+  assignees: string[];
+  lastEditedTime: Date;
+}
 
 /**
  * 수동 동기화 재시도 설정
@@ -27,16 +44,22 @@ const MANUAL_SYNC_RETRY_CONFIG: RetryConfig = {
 /**
  * Rate Limit 설정
  * - Notion API: 3 requests/second
- * - Token Bucket 방식으로 최소 필요 간격만 대기
+ * - Mutex로 보호되어 동시성 문제 해결
  */
 const MIN_REQUEST_INTERVAL_MS = 350; // 약 2.8 req/sec (안전 마진)
 
 /**
  * 배치 처리 설정
  * - Notion API 3 req/sec 제한 고려
- * - Serverless 타임아웃 고려하여 작은 배치 사용
+ * - Controlled Concurrency로 rate limit 준수하면서 병렬화
  */
 const BATCH_SIZE = 3;
+
+/**
+ * Notion->App 동기화는 DB 작업만 수행하므로 더 큰 배치 가능
+ * - Notion API 호출 없이 Supabase만 사용
+ */
+const DB_BATCH_SIZE = 10;
 
 /**
  * 동시성 제어용 락 키 생성
@@ -62,14 +85,29 @@ export class ServerlessManualSyncService {
   private syncLock = new Map<string, Promise<ManualSyncResult>>();
 
   /**
-   * Token Bucket 방식 Rate Limiting
+   * Mutex 보호 Rate Limiting
+   * - 마지막 요청 시간을 추적하여 필요한 만큼만 대기
+   * - Mutex로 보호하여 동시성 이슈 해결
    */
   private lastRequestTime = 0;
+  private rateLimitMutex: Promise<void> = Promise.resolve();
+
+  // Notion Status -> App Status 역매핑
+  private readonly reverseStatusMapping: Record<string, string> = {
+    '시작 전': '시작 전',
+    '진행 중': '진행 중',
+    완료: '완료',
+    // 영어 Status도 지원
+    'Not started': '시작 전',
+    'In progress': '진행 중',
+    Done: '완료',
+  };
 
   constructor(
     private readonly supabase: SupabaseService,
     private readonly notionSyncService: ServerlessNotionSyncService,
     private readonly syncLogService: ServerlessSyncLogService,
+    private readonly notionService: NotionService,
   ) {}
 
   /**
@@ -217,19 +255,37 @@ export class ServerlessManualSyncService {
   }
 
   /**
-   * Token Bucket 방식 Rate Limit 대기
+   * Mutex 보호 Rate Limit 대기
+   * - Mutex로 순차적 접근 보장하여 동시성 이슈 해결
+   * - 마지막 요청 이후 경과 시간을 계산하여 필요한 만큼만 대기
+   * - Promise.all 내에서도 rate limit 정확히 준수
    */
   private async waitForRateLimit(): Promise<void> {
-    const now = Date.now();
-    const elapsed = now - this.lastRequestTime;
-    const waitTime = MIN_REQUEST_INTERVAL_MS - elapsed;
+    // Mutex 체이닝: 이전 대기가 완료된 후 현재 대기 시작
+    const previousMutex = this.rateLimitMutex;
+    let resolveMutex: () => void;
+    this.rateLimitMutex = new Promise((resolve) => {
+      resolveMutex = resolve;
+    });
 
-    if (waitTime > 0) {
-      this.logger.debug(`Rate limit wait: ${waitTime}ms`);
-      await this.delay(waitTime);
+    try {
+      // 이전 요청의 rate limit 대기 완료 대기
+      await previousMutex;
+
+      const now = Date.now();
+      const elapsed = now - this.lastRequestTime;
+      const waitTime = MIN_REQUEST_INTERVAL_MS - elapsed;
+
+      if (waitTime > 0) {
+        this.logger.debug(`Rate limit wait: ${waitTime}ms`);
+        await this.delay(waitTime);
+      }
+
+      this.lastRequestTime = Date.now();
+    } finally {
+      // 다음 요청이 진행할 수 있도록 해제
+      resolveMutex!();
     }
-
-    this.lastRequestTime = Date.now();
   }
 
   /**
@@ -408,14 +464,485 @@ export class ServerlessManualSyncService {
   }
 
   /**
-   * Notion -> App 동기화 (향후 구현 예정)
+   * Notion -> App 동기화
+   * - Notion에서 모든 페이지 또는 특정 페이지 조회
+   * - Notion 속성을 App DB 형식으로 변환
+   * - notion_page_id로 기존 Task 매칭 (있으면 UPDATE, 없으면 CREATE)
+   * - Last Write Wins 충돌 해결
    */
   private async syncNotionToApp(
-    _taskId: string | undefined,
-    _result: ManualSyncResult,
+    notionPageId: string | undefined,
+    result: ManualSyncResult,
   ): Promise<void> {
-    this.logger.warn('Notion -> App sync is not implemented yet');
-    throw new Error('NOTION_TO_APP sync is not implemented yet');
+    // 1. Notion 페이지 조회
+    let notionPages: any[];
+
+    if (notionPageId) {
+      // 특정 페이지만 조회
+      try {
+        await this.waitForRateLimit();
+        const page = await this.notionService.getPage(notionPageId);
+        notionPages = [page];
+      } catch (error: any) {
+        this.logger.error(
+          `Failed to fetch Notion page ${notionPageId}: ${error.message}`,
+        );
+        result.errors.push({
+          taskId: notionPageId,
+          error: `Failed to fetch Notion page: ${error.message}`,
+        });
+        result.failedCount++;
+        return;
+      }
+    } else {
+      // 전체 페이지 조회
+      try {
+        await this.waitForRateLimit();
+        notionPages = await this.notionService.queryDatabase();
+      } catch (error: any) {
+        this.logger.error(`Failed to query Notion database: ${error.message}`);
+        throw error;
+      }
+    }
+
+    result.totalCount = notionPages.length;
+
+    if (notionPages.length === 0) {
+      this.logger.log('No Notion pages to sync');
+      return;
+    }
+
+    this.logger.log(
+      `Found ${notionPages.length} Notion pages to sync (batch size: ${DB_BATCH_SIZE})`,
+    );
+
+    // 2. 캐시 병렬 로드 (독립적인 쿼리들이므로 병렬 실행으로 ~50% 시간 단축)
+    const [workflowStatusCache, defaultProjectId, existingTasksMap] =
+      await Promise.all([
+        this.loadWorkflowStatusCache(),
+        this.getDefaultProjectId(),
+        this.loadExistingTasksMap(),
+      ]);
+
+    // 3. 배치 병렬 처리 (Notion API 호출 없이 DB 작업만 수행)
+    // - Notion->App은 이미 조회된 데이터를 DB에 저장하므로 rate limit 불필요
+    // - DB_BATCH_SIZE로 더 큰 배치 사용 가능
+    for (let i = 0; i < notionPages.length; i += DB_BATCH_SIZE) {
+      const batch = notionPages.slice(i, i + DB_BATCH_SIZE);
+      const batchNumber = Math.floor(i / DB_BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(notionPages.length / DB_BATCH_SIZE);
+
+      this.logger.log(`Processing Notion batch ${batchNumber}/${totalBatches}`);
+
+      // 배치 내 페이지들을 병렬 처리 (DB 작업만 수행하므로 rate limit 불필요)
+      const batchResults = await Promise.all(
+        batch.map((notionPage) =>
+          this.syncSingleNotionPage(
+            notionPage,
+            workflowStatusCache,
+            existingTasksMap,
+            defaultProjectId,
+          ),
+        ),
+      );
+
+      // 배치 결과 집계
+      for (const syncResult of batchResults) {
+        if (syncResult.status === 'success') {
+          result.successCount++;
+          result.syncedTaskIds.push(syncResult.taskId!);
+        } else if (syncResult.status === 'skipped') {
+          result.skippedCount++;
+        } else {
+          result.failedCount++;
+          result.errors.push({
+            taskId: syncResult.notionPageId ?? 'unknown',
+            error: syncResult.error ?? 'Unknown error',
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * 단일 Notion 페이지 동기화
+   */
+  private async syncSingleNotionPage(
+    notionPage: any,
+    workflowStatusCache: Map<string, { id: string; name: string }>,
+    existingTasksMap: Map<string, any>,
+    defaultProjectId: string | null,
+  ): Promise<{
+    status: 'success' | 'skipped' | 'failed';
+    taskId?: string;
+    notionPageId?: string;
+    error?: string;
+  }> {
+    const notionPageId = notionPage.id;
+    let lastError: string | undefined;
+
+    // 동기화 시작 로그 (임시 ID로 로깅, 실제 taskId는 나중에 결정)
+    await this.syncLogService.logSyncStart(
+      notionPageId,
+      SyncDirection.NOTION_TO_APP,
+    );
+
+    for (
+      let attempt = 0;
+      attempt < MANUAL_SYNC_RETRY_CONFIG.maxRetries;
+      attempt++
+    ) {
+      try {
+        // 1. Notion 페이지 파싱
+        const parsedTask = this.parseNotionPage(notionPage);
+
+        // 2. 기존 Task 확인
+        const existingTask = existingTasksMap.get(notionPageId);
+
+        // 3. Last Write Wins 충돌 해결
+        if (existingTask) {
+          const appUpdatedAt = new Date(existingTask.updated_at);
+          const notionUpdatedAt = parsedTask.lastEditedTime;
+
+          if (appUpdatedAt >= notionUpdatedAt) {
+            this.logger.debug(
+              `Skipping Notion page ${notionPageId}: App data is newer (App: ${appUpdatedAt.toISOString()}, Notion: ${notionUpdatedAt.toISOString()})`,
+            );
+            await this.syncLogService.logSyncComplete(
+              notionPageId,
+              SyncDirection.NOTION_TO_APP,
+            );
+            return { status: 'skipped', taskId: existingTask.id, notionPageId };
+          }
+        }
+
+        // 4. Status 매핑 (workflow_status_id 찾기)
+        let statusId: string | null = null;
+        if (parsedTask.status) {
+          const mappedStatusName =
+            this.reverseStatusMapping[parsedTask.status] ?? parsedTask.status;
+          const statusEntry = workflowStatusCache.get(mappedStatusName);
+          if (statusEntry) {
+            statusId = statusEntry.id;
+          } else {
+            this.logger.warn(
+              `Status "${parsedTask.status}" not found in workflow_status table`,
+            );
+          }
+        }
+
+        // 5. Task 데이터 구성
+        const taskData: Record<string, any> = {
+          title: parsedTask.title,
+          content: parsedTask.content,
+          status_id: statusId,
+          priority: parsedTask.priority,
+          start_date: parsedTask.startDate,
+          end_date: parsedTask.endDate,
+          tags: parsedTask.tags,
+          assignees: parsedTask.assignees,
+          notion_page_id: notionPageId,
+          updated_at: parsedTask.lastEditedTime.toISOString(),
+        };
+
+        let taskId: string;
+
+        if (existingTask) {
+          // UPDATE
+          const { error } = await this.supabase
+            .from('task')
+            .update(taskData)
+            .eq('id', existingTask.id);
+
+          if (error) {
+            throw new Error(`Failed to update task: ${error.message}`);
+          }
+
+          taskId = existingTask.id;
+          this.logger.log(
+            `Task ${taskId} updated from Notion page ${notionPageId}`,
+          );
+        } else {
+          // CREATE
+          taskData.project_id = defaultProjectId;
+          taskData.created_at = new Date().toISOString();
+
+          const { data: newTask, error } = await this.supabase
+            .from('task')
+            .insert(taskData)
+            .select('id')
+            .single();
+
+          if (error) {
+            throw new Error(`Failed to create task: ${error.message}`);
+          }
+
+          taskId = newTask.id;
+          this.logger.log(
+            `Task ${taskId} created from Notion page ${notionPageId}`,
+          );
+
+          // 새로 생성된 Task를 캐시에 추가
+          existingTasksMap.set(notionPageId, { id: taskId, ...taskData });
+        }
+
+        // 성공 로그
+        await this.syncLogService.logSyncComplete(
+          notionPageId,
+          SyncDirection.NOTION_TO_APP,
+        );
+
+        return { status: 'success', taskId, notionPageId };
+      } catch (error: any) {
+        lastError = error.message;
+        this.logger.warn(
+          `Notion sync attempt ${attempt + 1}/${MANUAL_SYNC_RETRY_CONFIG.maxRetries} failed for page ${notionPageId}: ${error.message}`,
+        );
+
+        // Rate Limit 에러 처리
+        if (isRateLimitError(error)) {
+          if (attempt < MANUAL_SYNC_RETRY_CONFIG.maxRetries - 1) {
+            const delay = calculateBackoffDelay(
+              attempt,
+              MANUAL_SYNC_RETRY_CONFIG,
+            );
+            this.logger.warn(
+              `Rate limited, waiting ${delay}ms before retry (attempt ${attempt + 1}/${MANUAL_SYNC_RETRY_CONFIG.maxRetries})`,
+            );
+            await this.delay(delay);
+          }
+          continue;
+        }
+
+        // 재시도 가능한 에러가 아닌 경우 즉시 실패
+        if (!isRetryableError(error)) {
+          break;
+        }
+
+        // 재시도 가능한 에러인 경우 지수 백오프
+        if (attempt < MANUAL_SYNC_RETRY_CONFIG.maxRetries - 1) {
+          const delay = calculateBackoffDelay(
+            attempt,
+            MANUAL_SYNC_RETRY_CONFIG,
+          );
+          await this.delay(delay);
+        }
+      }
+    }
+
+    // 실패 로그
+    await this.syncLogService.logSyncError(
+      notionPageId,
+      SyncDirection.NOTION_TO_APP,
+      lastError ?? 'Unknown error',
+      MANUAL_SYNC_RETRY_CONFIG.maxRetries,
+    );
+
+    return { status: 'failed', notionPageId, error: lastError };
+  }
+
+  /**
+   * Notion 페이지를 Task 형식으로 파싱
+   * Notion 데이터베이스 속성 구조:
+   * - Task Name (title)
+   * - Status: "시작 전", "진행 중", "완료" (status)
+   * - Priority: "High", "Medium", "Low" (select)
+   * - Due Date (date): start, end
+   * - Tags (multi_select)
+   * - Description (rich_text)
+   * - Assignees (rich_text)
+   */
+  private parseNotionPage(notionPage: any): ParsedNotionTask {
+    const properties = notionPage.properties || {};
+
+    // Title: Task Name (title 타입)
+    const title =
+      this.extractTitleFromProperty(properties['Task Name']) || 'Untitled';
+
+    // Status: status 타입
+    const status = this.extractStatusFromProperty(properties['Status']);
+
+    // Priority: select 타입
+    const priority = this.extractSelectFromProperty(properties['Priority']);
+
+    // Due Date: date 타입 (start, end)
+    const { startDate, endDate } = this.extractDateFromProperty(
+      properties['Due Date'],
+    );
+
+    // Tags: multi_select 타입 -> 쉼표 구분 문자열
+    const tags = this.extractMultiSelectAsString(properties['Tags']);
+
+    // Description: rich_text 타입
+    const content = this.extractRichTextFromProperty(properties['Description']);
+
+    // Assignees: rich_text 타입 -> 쉼표로 분리하여 배열
+    const assigneesText = this.extractRichTextFromProperty(
+      properties['Assignees'],
+    );
+    const assignees = assigneesText
+      ? assigneesText
+          .split(',')
+          .map((a) => a.trim())
+          .filter((a) => a.length > 0)
+      : [];
+
+    // last_edited_time
+    const lastEditedTime = new Date(notionPage.last_edited_time);
+
+    return {
+      notionPageId: notionPage.id,
+      title,
+      content,
+      status,
+      priority,
+      startDate,
+      endDate,
+      tags,
+      assignees,
+      lastEditedTime,
+    };
+  }
+
+  /**
+   * title 타입 속성에서 plain_text 추출
+   */
+  private extractTitleFromProperty(property: any): string | null {
+    if (!property || property.type !== 'title') return null;
+    const titleArray = property.title || [];
+    if (titleArray.length === 0) return null;
+    return titleArray.map((t: any) => t.plain_text || '').join('');
+  }
+
+  /**
+   * status 타입 속성에서 name 추출
+   */
+  private extractStatusFromProperty(property: any): string | null {
+    if (!property || property.type !== 'status') return null;
+    return property.status?.name || null;
+  }
+
+  /**
+   * select 타입 속성에서 name 추출
+   */
+  private extractSelectFromProperty(property: any): string | null {
+    if (!property || property.type !== 'select') return null;
+    return property.select?.name || null;
+  }
+
+  /**
+   * date 타입 속성에서 start/end 추출
+   */
+  private extractDateFromProperty(property: any): {
+    startDate: string | null;
+    endDate: string | null;
+  } {
+    if (!property || property.type !== 'date' || !property.date) {
+      return { startDate: null, endDate: null };
+    }
+    return {
+      startDate: property.date.start || null,
+      endDate: property.date.end || null,
+    };
+  }
+
+  /**
+   * multi_select 타입 속성에서 쉼표 구분 문자열로 변환
+   */
+  private extractMultiSelectAsString(property: any): string | null {
+    if (!property || property.type !== 'multi_select') return null;
+    const items = property.multi_select || [];
+    if (items.length === 0) return null;
+    return items.map((item: any) => item.name).join(',');
+  }
+
+  /**
+   * rich_text 타입 속성에서 plain_text 추출
+   */
+  private extractRichTextFromProperty(property: any): string | null {
+    if (!property || property.type !== 'rich_text') return null;
+    const richTextArray = property.rich_text || [];
+    if (richTextArray.length === 0) return null;
+    return richTextArray.map((rt: any) => rt.plain_text || '').join('');
+  }
+
+  /**
+   * workflow_status 캐시 로드
+   * name -> { id, name } 매핑
+   */
+  private async loadWorkflowStatusCache(): Promise<
+    Map<string, { id: string; name: string }>
+  > {
+    const { data: statuses, error } = await this.supabase
+      .from('workflow_status')
+      .select('id, name');
+
+    if (error) {
+      this.logger.error(`Failed to load workflow_status: ${error.message}`);
+      return new Map();
+    }
+
+    const cache = new Map<string, { id: string; name: string }>();
+    for (const status of statuses || []) {
+      cache.set(status.name, { id: status.id, name: status.name });
+    }
+
+    this.logger.debug(
+      `Loaded ${cache.size} workflow statuses: ${[...cache.keys()].join(', ')}`,
+    );
+    return cache;
+  }
+
+  /**
+   * 기존 Task 맵 로드 (notion_page_id -> task)
+   */
+  private async loadExistingTasksMap(): Promise<Map<string, any>> {
+    const { data: tasks, error } = await this.supabase
+      .from('task')
+      .select('id, notion_page_id, updated_at')
+      .is('deleted_at', null);
+
+    if (error) {
+      this.logger.error(`Failed to load existing tasks: ${error.message}`);
+      return new Map();
+    }
+
+    const map = new Map<string, any>();
+    for (const task of tasks || []) {
+      if (task.notion_page_id) {
+        map.set(task.notion_page_id, task);
+      }
+    }
+
+    this.logger.debug(`Loaded ${map.size} existing tasks with notion_page_id`);
+    return map;
+  }
+
+  /**
+   * 기본 프로젝트 ID 조회
+   * 환경변수 또는 첫 번째 프로젝트 사용
+   */
+  private async getDefaultProjectId(): Promise<string | null> {
+    // 환경변수에서 기본 프로젝트 ID 확인
+    const envProjectId = process.env.DEFAULT_PROJECT_ID;
+    if (envProjectId) {
+      return envProjectId;
+    }
+
+    // 첫 번째 프로젝트 조회
+    const { data: projects, error } = await this.supabase
+      .from('project')
+      .select('id')
+      .limit(1);
+
+    if (error || !projects || projects.length === 0) {
+      this.logger.warn(
+        'No default project found. New tasks will have null project_id.',
+      );
+      return null;
+    }
+
+    return projects[0].id;
   }
 
   /**
