@@ -101,6 +101,7 @@ PostgreSQL (Supabase)
 **Data Flow:**
 - App → Notion: User action → PostgreSQL → Sync Queue → Worker → MCP → Notion
 - Notion → App: Scheduler polls Notion (1-5 min) → Compare updated_time → Update DB
+- 수동 동기화 (양방향): Settings 페이지에서 App → Notion, Notion → App 개별 실행 가능
 
 **Conflict Resolution:** Last Write Wins (based on updated_at timestamp)
 
@@ -218,9 +219,13 @@ frontend/src/
 - [x] 수동 동기화 성능 최적화 (토큰 버킷 Rate Limit, 배치 병렬 처리)
 - [x] 담당자(Assignee) 편집 기능 추가 (TaskModal, AssigneeEditor)
 - [x] Notion Assignees 속성 동기화 (rich_text 타입)
+- [x] Notion → App 수동 동기화 구현 (양방향 동기화 완성)
+- [x] Settings 페이지 양방향 동기화 UI (App→Notion, Notion→App 개별 실행)
+- [x] Mutex 기반 Rate Limit 동시성 제어 (Promise.all 안전성 보장)
+- [x] Notion 페이지 파싱 및 DB 반영 (ParsedNotionTask 인터페이스)
 
 ### Next (4단계: 동기화 고도화)
-- [ ] Notion → App Polling Scheduler (백엔드 스케줄러 구현 필요)
+- [x] Notion → App 수동 동기화 완료 (Polling Scheduler는 미구현)
 - [ ] Conflict Resolution 강화 (Last Write Wins → 사용자 선택 옵션)
 - [ ] Supabase Realtime 연동 (실시간 UI 업데이트)
 - [ ] Sync Worker 별도 서버 배포 (Railway/Render)

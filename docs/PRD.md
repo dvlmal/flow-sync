@@ -190,12 +190,13 @@ Scheduler (1~5분 주기) → Notion 조회 → updated_time 비교 → 변경�
 - [x] Workflow Status 색상 선택 기능 (8색 팔레트)
 
 ### 4단계: 동기화 고도화
-- [ ] Notion → App Polling Scheduler
+- [x] Notion → App 수동 동기화 완료 (Polling Scheduler는 미구현)
 - [ ] Conflict Resolution 강화
 - [x] Retry & Dead Letter Queue
 - [x] Settings 수동 동기화 API 연동 (ServerlessSyncModule)
 - [x] 수동 동기화 성능 최적화 (토큰 버킷 Rate Limit, 배치 병렬 처리)
 - [x] 담당자(Assignee) 편집 기능 및 Notion 동기화
+- [x] 양방향 수동 동기화 UI (App→Notion, Notion→App 개별 실행)
 - [ ] SyncLogs 백엔드 API 연동
 
 ### Vercel 배포
@@ -252,3 +253,4 @@ Scheduler (1~5분 주기) → Notion 조회 → updated_time 비교 → 변경�
 | v3.5 | Project Management 페이지, Workflow Status CRUD 및 색상 선택, Settings/SyncLogs 페이지 |
 | v3.6 | SyncModule 동적 로딩, Sync 서비스 Supabase 마이그레이션, ListView 인라인 날짜 편집 |
 | v3.7 | ServerlessSyncModule 추가, 수동 동기화 성능 최적화, 담당자 편집 기능 |
+| v3.8 | 양방향 수동 동기화 완성 (Notion → App 동기화 추가), Mutex 기반 동시성 제어 |

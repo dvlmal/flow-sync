@@ -143,7 +143,8 @@ React (Vercel Static) → Serverless Function → Supabase REST API → PostgreS
 - **Source of Truth**: PostgreSQL (Supabase)
 - **API 클라이언트**: Native fetch 기반 Supabase REST API
 - **동기화 방식**: Queue + Batch 기반 준실시간 동기화 (로컬 전용)
-- **충돌 해결**: Last Write Wins (updated_at 기준)
+- **수동 동기화**: 양방향 지원 (App → Notion, Notion → App)
+- **충돌 해결**: Last Write Wins (updated_at vs last_edited_time 비교)
 
 ## API 엔드포인트
 
@@ -163,8 +164,9 @@ React (Vercel Static) → Serverless Function → Supabase REST API → PostgreS
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/sync/manual` | 수동 동기화 실행 (App → Notion) |
+| POST | `/api/sync/manual/notion-to-app` | 수동 동기화 실행 (Notion → App) |
 
-**수동 동기화 Request:**
+**App → Notion 수동 동기화 Request:**
 ```json
 {
   "projectId": "uuid",        // 선택: 특정 프로젝트만 동기화
@@ -172,7 +174,7 @@ React (Vercel Static) → Serverless Function → Supabase REST API → PostgreS
 }
 ```
 
-**수동 동기화 Response:**
+**App → Notion 수동 동기화 Response:**
 ```json
 {
   "success": true,
@@ -180,6 +182,27 @@ React (Vercel Static) → Serverless Function → Supabase REST API → PostgreS
   "failedCount": 0,
   "errors": [],
   "duration": 3990
+}
+```
+
+**Notion → App 수동 동기화 Request:**
+```json
+{
+  "projectId": "uuid"         // 선택: 특정 프로젝트만 동기화
+}
+```
+
+**Notion → App 수동 동기화 Response:**
+```json
+{
+  "success": true,
+  "syncedCount": 6,
+  "createdCount": 2,
+  "updatedCount": 4,
+  "skippedCount": 0,
+  "failedCount": 0,
+  "errors": [],
+  "duration": 2680
 }
 ```
 
